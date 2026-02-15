@@ -116,10 +116,14 @@ def ensure_workspace(user, access_token):
             jwt_sub = decoded.get("sub", "MISSING")
         except Exception:
             jwt_sub = "DECODE_FAILED"
+        jwt_role = decoded.get("role", "MISSING") if jwt_sub != "DECODE_FAILED" else "?"
+        jwt_aud = decoded.get("aud", "MISSING") if jwt_sub != "DECODE_FAILED" else "?"
         st.session_state.error = (
             f"{e}\n\n"
             f"DEBUG — user_id we sent: {user_id}\n"
             f"DEBUG — JWT sub (auth.uid): {jwt_sub}\n"
+            f"DEBUG — JWT role: {jwt_role}\n"
+            f"DEBUG — JWT aud: {jwt_aud}\n"
             f"DEBUG — match: {user_id == jwt_sub}"
         )
         return None
