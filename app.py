@@ -1,5 +1,6 @@
 import streamlit as st
-from supabase import create_client, ClientOptions
+from supabase import create_client
+import httpx
 import os
 from dotenv import load_dotenv
 
@@ -15,27 +16,37 @@ def get_secret(key):
 SUPABASE_URL = get_secret("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
 
-# Unauthenticated client for auth operations (sign up, sign in)
+# Unauthenticated client for auth operations only
 supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", layout="wide")
 
 
 def init_session_state():
-    if "user" not in st.session_state:
-        st.session_state.user = None
-    if "workspace" not in st.session_state:
-        st.session_state.workspace = None
-    if "access_token" not in st.session_state:
-        st.session_state.access_token = None
+    for key in ["user", "workspace", "access_token", "error"]:
+        if key not in st.session_state:
+            st.session_state[key] = None
 
 
-def get_authenticated_client(access_token):
-    """Create a Supabase client with the user's JWT for RLS."""
-    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    # Explicitly set JWT on the PostgREST sub-client
-    client.postgrest.auth(access_token)
-    return client
+def db_request(method, table, access_token, params=None, body=None):
+    """Direct REST call to Supabase PostgREST with authenticated JWT."""
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    if method == "GET":
+        r = httpx.get(url, headers=headers, params=params)
+    elif method == "POST":
+        r = httpx.post(url, headers=headers, json=body)
+    else:
+        raise ValueError(f"Unsupported method: {method}")
+
+    if r.status_code >= 400:
+        raise Exception(f"DB {method} {table}: {r.status_code} {r.text}")
+    return r.json()
 
 
 def sign_up(email, password):
@@ -70,43 +81,33 @@ def sign_in(email, password):
 
 def ensure_workspace(user, access_token):
     """Check if user has a workspace; create one if not."""
-    client = get_authenticated_client(access_token)
-    user_id = user.id
+    user_id = str(user.id)
     email = user.email
 
     try:
         # Check existing workspace membership
-        result = client.table("workspace_members") \
-            .select("workspace_id, workspaces(id, name)") \
-            .eq("user_id", user_id) \
-            .execute()
+        rows = db_request("GET", "workspace_members", access_token,
+            params={"select": "workspace_id,workspaces(id,name)", "user_id": f"eq.{user_id}"})
 
-        if result.data and len(result.data) > 0:
-            ws = result.data[0]["workspaces"]
+        if rows and len(rows) > 0:
+            ws = rows[0]["workspaces"]
             return {"id": ws["id"], "name": ws["name"]}
 
         # No workspace — create one
         ws_name = f"{email}'s Workspace"
-        ws_result = client.table("workspaces") \
-            .insert({"name": ws_name, "created_by": user_id}) \
-            .execute()
+        ws_rows = db_request("POST", "workspaces", access_token,
+            body={"name": ws_name, "created_by": user_id})
 
-        if not ws_result.data:
-            st.error("Failed to create workspace.")
-            return None
-
-        workspace_id = ws_result.data[0]["id"]
+        workspace_id = ws_rows[0]["id"]
 
         # Add user as owner
-        client.table("workspace_members") \
-            .insert({"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}) \
-            .execute()
+        db_request("POST", "workspace_members", access_token,
+            body={"workspace_id": workspace_id, "user_id": user_id, "role": "owner"})
 
         return {"id": workspace_id, "name": ws_name}
 
     except Exception as e:
-        st.error(f"Workspace error: {e}")
-        st.code(f"user_id: {user_id}\ntoken starts: {access_token[:20]}...")
+        st.session_state.error = str(e)
         return None
 
 
@@ -115,12 +116,21 @@ def logout():
     st.session_state.user = None
     st.session_state.workspace = None
     st.session_state.access_token = None
+    st.session_state.error = None
     st.rerun()
 
 
 def show_auth_page():
     st.title("Search Intelligence Suite")
     st.markdown("AI-powered search optimisation tools")
+
+    # Show persistent error if any
+    if st.session_state.error:
+        st.error(f"Error: {st.session_state.error}")
+        if st.button("Clear error"):
+            st.session_state.error = None
+            st.rerun()
+
     st.divider()
 
     tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
@@ -140,8 +150,9 @@ def show_auth_page():
                         st.session_state.user = response.user
                         st.session_state.access_token = token
                         workspace = ensure_workspace(response.user, token)
-                        st.session_state.workspace = workspace
-                        st.rerun()
+                        if workspace:
+                            st.session_state.workspace = workspace
+                            st.rerun()
 
     with tab_signup:
         with st.form("signup_form"):
@@ -162,8 +173,9 @@ def show_auth_page():
                             st.session_state.user = response.user
                             st.session_state.access_token = token
                             workspace = ensure_workspace(response.user, token)
-                            st.session_state.workspace = workspace
-                            st.rerun()
+                            if workspace:
+                                st.session_state.workspace = workspace
+                                st.rerun()
                         else:
                             st.success("Account created! Check your email to confirm, then log in.")
 
