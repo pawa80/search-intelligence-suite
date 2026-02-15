@@ -107,7 +107,21 @@ def ensure_workspace(user, access_token):
         return {"id": workspace_id, "name": ws_name}
 
     except Exception as e:
-        st.session_state.error = str(e)
+        # Decode JWT to show what auth.uid() resolves to
+        import json, base64
+        try:
+            payload = access_token.split(".")[1]
+            payload += "=" * (4 - len(payload) % 4)  # pad base64
+            decoded = json.loads(base64.b64decode(payload))
+            jwt_sub = decoded.get("sub", "MISSING")
+        except Exception:
+            jwt_sub = "DECODE_FAILED"
+        st.session_state.error = (
+            f"{e}\n\n"
+            f"DEBUG — user_id we sent: {user_id}\n"
+            f"DEBUG — JWT sub (auth.uid): {jwt_sub}\n"
+            f"DEBUG — match: {user_id == jwt_sub}"
+        )
         return None
 
 
