@@ -24,10 +24,6 @@ def sign_up(email, password):
     try:
         response = supabase.auth.sign_up({"email": email, "password": password})
         if response.user:
-            # If email confirmation is required, user.identities will be empty
-            if response.user.identities and len(response.user.identities) == 0:
-                st.warning("Check your email to confirm your account before logging in.")
-                return None
             return response
         return None
     except Exception as e:
@@ -138,15 +134,18 @@ def show_auth_page():
                 else:
                     response = sign_up(email, password)
                     if response and response.user:
-                        # Auto-login after signup if no email confirmation required
-                        supabase.auth.set_session(
-                            response.session.access_token,
-                            response.session.refresh_token
-                        )
-                        st.session_state.user = response.user
-                        workspace = ensure_workspace(response.user)
-                        st.session_state.workspace = workspace
-                        st.rerun()
+                        if response.session:
+                            # No email confirmation required — auto-login
+                            supabase.auth.set_session(
+                                response.session.access_token,
+                                response.session.refresh_token
+                            )
+                            st.session_state.user = response.user
+                            workspace = ensure_workspace(response.user)
+                            st.session_state.workspace = workspace
+                            st.rerun()
+                        else:
+                            st.success("Account created! Check your email to confirm, then log in.")
 
 
 def show_dashboard():
