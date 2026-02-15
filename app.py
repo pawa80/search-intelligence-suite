@@ -5,9 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Read from st.secrets (Streamlit Cloud) or .env (local)
+def get_secret(key):
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return os.getenv(key)
+
 supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_ANON_KEY")
+    get_secret("SUPABASE_URL"),
+    get_secret("SUPABASE_ANON_KEY")
 )
 
 st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", layout="wide")
@@ -18,6 +25,13 @@ def init_session_state():
         st.session_state.user = None
     if "workspace" not in st.session_state:
         st.session_state.workspace = None
+    if "access_token" not in st.session_state:
+        st.session_state.access_token = None
+
+
+def set_auth_header(access_token):
+    """Set the JWT on the PostgREST client so RLS sees the authenticated user."""
+    supabase.postgrest.auth(access_token)
 
 
 def sign_up(email, password):
@@ -85,10 +99,19 @@ def ensure_workspace(user):
     return {"id": workspace_id, "name": ws_name}
 
 
+def authenticate_session(access_token, refresh_token, user):
+    """Store auth state and set JWT on PostgREST client."""
+    supabase.auth.set_session(access_token, refresh_token)
+    set_auth_header(access_token)
+    st.session_state.user = user
+    st.session_state.access_token = access_token
+
+
 def logout():
     supabase.auth.sign_out()
     st.session_state.user = None
     st.session_state.workspace = None
+    st.session_state.access_token = None
     st.rerun()
 
 
@@ -110,12 +133,11 @@ def show_auth_page():
                 else:
                     response = sign_in(email, password)
                     if response and response.user:
-                        # Set session so RLS works for authenticated calls
-                        supabase.auth.set_session(
+                        authenticate_session(
                             response.session.access_token,
-                            response.session.refresh_token
+                            response.session.refresh_token,
+                            response.user
                         )
-                        st.session_state.user = response.user
                         workspace = ensure_workspace(response.user)
                         st.session_state.workspace = workspace
                         st.rerun()
@@ -135,12 +157,11 @@ def show_auth_page():
                     response = sign_up(email, password)
                     if response and response.user:
                         if response.session:
-                            # No email confirmation required — auto-login
-                            supabase.auth.set_session(
+                            authenticate_session(
                                 response.session.access_token,
-                                response.session.refresh_token
+                                response.session.refresh_token,
+                                response.user
                             )
-                            st.session_state.user = response.user
                             workspace = ensure_workspace(response.user)
                             st.session_state.workspace = workspace
                             st.rerun()
@@ -151,6 +172,10 @@ def show_auth_page():
 def show_dashboard():
     workspace = st.session_state.workspace
     user = st.session_state.user
+
+    # Re-apply auth header on rerun (Streamlit re-executes the whole script)
+    if st.session_state.access_token:
+        set_auth_header(st.session_state.access_token)
 
     with st.sidebar:
         st.markdown(f"**{workspace['name']}**")
