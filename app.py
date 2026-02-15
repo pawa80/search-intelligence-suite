@@ -79,6 +79,20 @@ def sign_in(email, password):
         return None
 
 
+def rpc_request(fn_name, access_token, params):
+    """Call a Supabase RPC function."""
+    url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    r = httpx.post(url, headers=headers, json=params)
+    if r.status_code >= 400:
+        raise Exception(f"RPC {fn_name}: {r.status_code} {r.text}")
+    return r.json()
+
+
 def ensure_workspace(user, access_token):
     """Check if user has a workspace; create one if not."""
     user_id = str(user.id)
@@ -93,39 +107,15 @@ def ensure_workspace(user, access_token):
             ws = rows[0]["workspaces"]
             return {"id": ws["id"], "name": ws["name"]}
 
-        # No workspace — create one
+        # No workspace — create via SECURITY DEFINER RPC
         ws_name = f"{email}'s Workspace"
-        ws_rows = db_request("POST", "workspaces", access_token,
-            body={"name": ws_name, "created_by": user_id})
-
-        workspace_id = ws_rows[0]["id"]
-
-        # Add user as owner
-        db_request("POST", "workspace_members", access_token,
-            body={"workspace_id": workspace_id, "user_id": user_id, "role": "owner"})
+        workspace_id = rpc_request("create_workspace_for_user", access_token,
+            {"ws_name": ws_name, "ws_user_id": user_id})
 
         return {"id": workspace_id, "name": ws_name}
 
     except Exception as e:
-        # Decode JWT to show what auth.uid() resolves to
-        import json, base64
-        try:
-            payload = access_token.split(".")[1]
-            payload += "=" * (4 - len(payload) % 4)  # pad base64
-            decoded = json.loads(base64.b64decode(payload))
-            jwt_sub = decoded.get("sub", "MISSING")
-        except Exception:
-            jwt_sub = "DECODE_FAILED"
-        jwt_role = decoded.get("role", "MISSING") if jwt_sub != "DECODE_FAILED" else "?"
-        jwt_aud = decoded.get("aud", "MISSING") if jwt_sub != "DECODE_FAILED" else "?"
-        st.session_state.error = (
-            f"{e}\n\n"
-            f"DEBUG — user_id we sent: {user_id}\n"
-            f"DEBUG — JWT sub (auth.uid): {jwt_sub}\n"
-            f"DEBUG — JWT role: {jwt_role}\n"
-            f"DEBUG — JWT aud: {jwt_aud}\n"
-            f"DEBUG — match: {user_id == jwt_sub}"
-        )
+        st.session_state.error = str(e)
         return None
 
 
