@@ -1,5 +1,5 @@
 import streamlit as st
-from supabase import create_client
+from supabase import create_client, ClientOptions
 import os
 from dotenv import load_dotenv
 
@@ -12,10 +12,11 @@ def get_secret(key):
     except (KeyError, FileNotFoundError):
         return os.getenv(key)
 
-supabase = create_client(
-    get_secret("SUPABASE_URL"),
-    get_secret("SUPABASE_ANON_KEY")
-)
+SUPABASE_URL = get_secret("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
+
+# Unauthenticated client for auth operations (sign up, sign in)
+supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", layout="wide")
 
@@ -29,9 +30,15 @@ def init_session_state():
         st.session_state.access_token = None
 
 
-def set_auth_header(access_token):
-    """Set the JWT on the PostgREST client so RLS sees the authenticated user."""
-    supabase.postgrest.auth(access_token)
+def get_authenticated_client(access_token):
+    """Create a Supabase client with the user's JWT in the Authorization header."""
+    return create_client(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+        options=ClientOptions(
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+    )
 
 
 def sign_up(email, password):
@@ -64,13 +71,14 @@ def sign_in(email, password):
         return None
 
 
-def ensure_workspace(user):
+def ensure_workspace(user, access_token):
     """Check if user has a workspace; create one if not."""
+    client = get_authenticated_client(access_token)
     user_id = user.id
     email = user.email
 
     # Check existing workspace membership
-    result = supabase.table("workspace_members") \
+    result = client.table("workspace_members") \
         .select("workspace_id, workspaces(id, name)") \
         .eq("user_id", user_id) \
         .execute()
@@ -81,7 +89,7 @@ def ensure_workspace(user):
 
     # No workspace — create one
     ws_name = f"{email}'s Workspace"
-    ws_result = supabase.table("workspaces") \
+    ws_result = client.table("workspaces") \
         .insert({"name": ws_name, "created_by": user_id}) \
         .execute()
 
@@ -92,19 +100,11 @@ def ensure_workspace(user):
     workspace_id = ws_result.data[0]["id"]
 
     # Add user as owner
-    supabase.table("workspace_members") \
+    client.table("workspace_members") \
         .insert({"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}) \
         .execute()
 
     return {"id": workspace_id, "name": ws_name}
-
-
-def authenticate_session(access_token, refresh_token, user):
-    """Store auth state and set JWT on PostgREST client."""
-    supabase.auth.set_session(access_token, refresh_token)
-    set_auth_header(access_token)
-    st.session_state.user = user
-    st.session_state.access_token = access_token
 
 
 def logout():
@@ -133,12 +133,10 @@ def show_auth_page():
                 else:
                     response = sign_in(email, password)
                     if response and response.user:
-                        authenticate_session(
-                            response.session.access_token,
-                            response.session.refresh_token,
-                            response.user
-                        )
-                        workspace = ensure_workspace(response.user)
+                        token = response.session.access_token
+                        st.session_state.user = response.user
+                        st.session_state.access_token = token
+                        workspace = ensure_workspace(response.user, token)
                         st.session_state.workspace = workspace
                         st.rerun()
 
@@ -157,12 +155,10 @@ def show_auth_page():
                     response = sign_up(email, password)
                     if response and response.user:
                         if response.session:
-                            authenticate_session(
-                                response.session.access_token,
-                                response.session.refresh_token,
-                                response.user
-                            )
-                            workspace = ensure_workspace(response.user)
+                            token = response.session.access_token
+                            st.session_state.user = response.user
+                            st.session_state.access_token = token
+                            workspace = ensure_workspace(response.user, token)
                             st.session_state.workspace = workspace
                             st.rerun()
                         else:
@@ -172,10 +168,6 @@ def show_auth_page():
 def show_dashboard():
     workspace = st.session_state.workspace
     user = st.session_state.user
-
-    # Re-apply auth header on rerun (Streamlit re-executes the whole script)
-    if st.session_state.access_token:
-        set_auth_header(st.session_state.access_token)
 
     with st.sidebar:
         st.markdown(f"**{workspace['name']}**")
