@@ -152,7 +152,7 @@ def show_auth_page():
                         workspace = ensure_workspace(response.user, token)
                         if workspace:
                             st.session_state.workspace = workspace
-                            st.rerun()
+                        st.rerun()
 
     with tab_signup:
         with st.form("signup_form"):
@@ -175,7 +175,7 @@ def show_auth_page():
                             workspace = ensure_workspace(response.user, token)
                             if workspace:
                                 st.session_state.workspace = workspace
-                                st.rerun()
+                            st.rerun()
                         else:
                             st.success("Account created! Check your email to confirm, then log in.")
 
