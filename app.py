@@ -31,14 +31,11 @@ def init_session_state():
 
 
 def get_authenticated_client(access_token):
-    """Create a Supabase client with the user's JWT in the Authorization header."""
-    return create_client(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        options=ClientOptions(
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
-    )
+    """Create a Supabase client with the user's JWT for RLS."""
+    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    # Explicitly set JWT on the PostgREST sub-client
+    client.postgrest.auth(access_token)
+    return client
 
 
 def sign_up(email, password):
