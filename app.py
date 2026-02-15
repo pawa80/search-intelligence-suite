@@ -77,34 +77,40 @@ def ensure_workspace(user, access_token):
     user_id = user.id
     email = user.email
 
-    # Check existing workspace membership
-    result = client.table("workspace_members") \
-        .select("workspace_id, workspaces(id, name)") \
-        .eq("user_id", user_id) \
-        .execute()
+    try:
+        # Check existing workspace membership
+        result = client.table("workspace_members") \
+            .select("workspace_id, workspaces(id, name)") \
+            .eq("user_id", user_id) \
+            .execute()
 
-    if result.data and len(result.data) > 0:
-        ws = result.data[0]["workspaces"]
-        return {"id": ws["id"], "name": ws["name"]}
+        if result.data and len(result.data) > 0:
+            ws = result.data[0]["workspaces"]
+            return {"id": ws["id"], "name": ws["name"]}
 
-    # No workspace — create one
-    ws_name = f"{email}'s Workspace"
-    ws_result = client.table("workspaces") \
-        .insert({"name": ws_name, "created_by": user_id}) \
-        .execute()
+        # No workspace — create one
+        ws_name = f"{email}'s Workspace"
+        ws_result = client.table("workspaces") \
+            .insert({"name": ws_name, "created_by": user_id}) \
+            .execute()
 
-    if not ws_result.data:
-        st.error("Failed to create workspace.")
+        if not ws_result.data:
+            st.error("Failed to create workspace.")
+            return None
+
+        workspace_id = ws_result.data[0]["id"]
+
+        # Add user as owner
+        client.table("workspace_members") \
+            .insert({"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}) \
+            .execute()
+
+        return {"id": workspace_id, "name": ws_name}
+
+    except Exception as e:
+        st.error(f"Workspace error: {e}")
+        st.code(f"user_id: {user_id}\ntoken starts: {access_token[:20]}...")
         return None
-
-    workspace_id = ws_result.data[0]["id"]
-
-    # Add user as owner
-    client.table("workspace_members") \
-        .insert({"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}) \
-        .execute()
-
-    return {"id": workspace_id, "name": ws_name}
 
 
 def logout():
