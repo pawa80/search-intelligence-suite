@@ -45,12 +45,17 @@ Pal + Morten collaboration.
 - `create_workspace_for_user(ws_name text, ws_user_id uuid)` — SECURITY DEFINER, creates workspace + membership atomically
 - `user_in_workspace(ws_id uuid)` — SECURITY DEFINER, checks if auth.uid() is member of workspace
 
+### RPC Functions (additional)
+- `user_owns_project(p_id uuid)` — SECURITY DEFINER, checks project→workspace→member chain in one call. Used by `geo_check_results` RLS policies to avoid nested RLS subquery issues.
+
 ### RLS Policies
 - `workspaces` INSERT: `created_by = auth.uid()`
 - `workspaces` SELECT: `created_by = auth.uid()`
 - `workspaces` UPDATE: `user_in_workspace(id)` (SECURITY DEFINER, safe)
 - `workspace_members` INSERT: `user_id = auth.uid()`
 - `workspace_members` SELECT: `user_id = auth.uid()`
+- `geo_check_results` INSERT: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `geo_check_results` SELECT: `user_owns_project(project_id)` (SECURITY DEFINER)
 
 ## Python Environment
 - **uv** for package management (installed via `python -m pip install uv`)
@@ -67,22 +72,45 @@ Pal + Morten collaboration.
 ## Completed
 - **Section 2**: Auth flow — signup, login, auto-workspace creation, logout, re-login finds existing workspace
 - **Section 3**: Project + query management — CRUD for projects, single/bulk/CSV query add, delete queries
-- **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate
+- **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate. **TESTED AND WORKING** — 142/149 queries checked (7 failed, likely API timeouts). Results persist and display correctly.
 
 ## Next Up
-- **Section 4 testing**: Add PERPLEXITY_API_KEY to Streamlit Cloud secrets, then test citation check on WTA queries
 - **Section 5**: Dashboard visualisations (trend charts, citation rate over time)
 - **Section 6**: Data import (historical GEO Tracker data migration)
 - **Section 7**: Mobile optimisation
-- Restore original `user_in_workspace` RLS policies once we confirm they work with SECURITY DEFINER
+- Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
+- Remove "Test (3 queries)" button once stable (or keep as dev convenience)
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
+
+## RLS Debugging Pattern (for future reference)
+When adding new tables that reference `projects` or `workspaces`:
+1. **Never** use inline subqueries in RLS policies that hit other RLS-protected tables
+2. **Always** create a SECURITY DEFINER function that does the full ownership chain check internally
+3. Pattern: `user_owns_project(project_id)` joins projects→workspace_members, bypasses RLS
+4. The nested RLS problem: policy subquery on `projects` triggers `projects` RLS, which may trigger further RLS → silent failures or recursion
+
+## Streamlit Cloud Secrets Gotcha
+- Secrets must be valid TOML: `KEY = "value"` with quotes
+- Pasting can introduce invisible characters or strip hyphens — always verify the key manually
+- The Perplexity key has a hyphen: `pplx-` (was stripped during paste, caused 401)
 
 ## Rolling Handover
 Last session: Feb 16 2026
 
-### Feb 16 2026 — Sections 2-4
-- **Section 2** (Auth): Built Streamlit app with Supabase Auth. Fought RLS extensively — solved with raw httpx + SECURITY DEFINER RPC. 13 commits.
-- **Section 3** (Projects/Queries): CRUD for projects and queries. Single/bulk/CSV add, delete. Pre-verified against live DB. 1 commit.
-- **Section 4** (Citation Engine): Perplexity API `sonar` model, `check_citation()` with domain matching, batch `run_citation_check()` with progress bar, `db_upsert()` for PostgREST UPSERT, results display with citation rate summary + dataframe. 1 commit (1e55ee2).
-- **Pending**: PERPLEXITY_API_KEY needs adding to Streamlit Cloud secrets before testing Section 4.
+### Feb 16 2026 — Sections 2-4 (2 sessions)
+**Session 1** (earlier):
+- Built Sections 2-4 from scratch: auth, project/query CRUD, citation engine
+- Fought RLS extensively — solved with raw httpx + SECURITY DEFINER RPC
+- ~15 commits total
+
+**Session 2** (this session — continuation after context ran out):
+- Committed + pushed Section 4 citation engine code (commit 1e55ee2)
+- Fixed `geo_check_results` RLS — policies had nested subquery on `projects` table (RLS-protected), causing silent INSERT failures
+- Created `user_owns_project()` SECURITY DEFINER function — checks project→workspace→member chain in one call
+- Replaced both INSERT and SELECT policies on `geo_check_results` to use `user_owns_project(project_id)`
+- Fixed Perplexity API 401 — key was missing hyphen in Streamlit Cloud secrets (paste issue)
+- Added "Test (3 queries)" button + visible error messages for debugging
+- Removed `st.rerun()` after citation check so errors stay visible
+- **Final result**: 142/149 queries checked successfully, 7 failed (likely API timeouts). Results persist and display.
+- Commits: 1e55ee2, 0e71a54, 704abdf, d7b2bae
 - Test user: pwaagbo@gmail.com (workspace created, login/logout verified)
