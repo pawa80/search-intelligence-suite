@@ -37,9 +37,9 @@ Pal + Morten collaboration.
 ### Tables (all RLS enabled)
 - `workspaces` (id, name, created_by, created_at)
 - `workspace_members` (workspace_id, user_id, role, joined_at)
-- `projects` (exists, not yet used)
-- `queries` (exists, not yet used)
-- `geo_check_results` (exists, not yet used)
+- `projects` (id, workspace_id, name, domain, created_at) — RLS via workspace membership
+- `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
+- `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
 
 ### RPC Functions
 - `create_workspace_for_user(ws_name text, ws_user_id uuid)` — SECURITY DEFINER, creates workspace + membership atomically
@@ -66,20 +66,23 @@ Pal + Morten collaboration.
 
 ## Completed
 - **Section 2**: Auth flow — signup, login, auto-workspace creation, logout, re-login finds existing workspace
+- **Section 3**: Project + query management — CRUD for projects, single/bulk/CSV query add, delete queries
+- **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate
 
 ## Next Up
-- **Section 3**: Project creation + query management within workspaces
+- **Section 4 testing**: Add PERPLEXITY_API_KEY to Streamlit Cloud secrets, then test citation check on WTA queries
+- **Section 5**: Dashboard visualisations (trend charts, citation rate over time)
+- **Section 6**: Data import (historical GEO Tracker data migration)
+- **Section 7**: Mobile optimisation
 - Restore original `user_in_workspace` RLS policies once we confirm they work with SECURITY DEFINER
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
-- Investigate why direct table INSERT via REST API fails RLS despite valid JWT (the `WITH CHECK (true)` test still failed — may be a Supabase/PostgREST config issue worth a support ticket)
 
 ## Rolling Handover
 Last session: Feb 16 2026
 
-### Feb 16 2026 — Section 2 Auth
-- Built Streamlit app with Supabase Auth
-- Fought RLS issues extensively — supabase-py doesn't propagate JWT to PostgREST client
-- Solved with raw httpx for table ops + SECURITY DEFINER RPC for workspace creation
-- Fixed recursive RLS (`user_in_workspace` made SECURITY DEFINER, direct policies on workspace_members)
-- 13 commits, all deployed via Streamlit Cloud
+### Feb 16 2026 — Sections 2-4
+- **Section 2** (Auth): Built Streamlit app with Supabase Auth. Fought RLS extensively — solved with raw httpx + SECURITY DEFINER RPC. 13 commits.
+- **Section 3** (Projects/Queries): CRUD for projects and queries. Single/bulk/CSV add, delete. Pre-verified against live DB. 1 commit.
+- **Section 4** (Citation Engine): Perplexity API `sonar` model, `check_citation()` with domain matching, batch `run_citation_check()` with progress bar, `db_upsert()` for PostgREST UPSERT, results display with citation rate summary + dataframe. 1 commit (1e55ee2).
+- **Pending**: PERPLEXITY_API_KEY needs adding to Streamlit Cloud secrets before testing Section 4.
 - Test user: pwaagbo@gmail.com (workspace created, login/logout verified)
