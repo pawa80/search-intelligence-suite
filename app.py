@@ -101,11 +101,15 @@ def ensure_workspace(user, access_token):
     try:
         # Check existing workspace membership
         rows = db_request("GET", "workspace_members", access_token,
-            params={"select": "workspace_id,workspaces(id,name)", "user_id": f"eq.{user_id}"})
+            params={"select": "workspace_id", "user_id": f"eq.{user_id}"})
 
         if rows and len(rows) > 0:
-            ws = rows[0]["workspaces"]
-            return {"id": ws["id"], "name": ws["name"]}
+            ws_id = rows[0]["workspace_id"]
+            # Fetch workspace name separately
+            ws_rows = db_request("GET", "workspaces", access_token,
+                params={"select": "id,name", "id": f"eq.{ws_id}"})
+            if ws_rows:
+                return {"id": ws_rows[0]["id"], "name": ws_rows[0]["name"]}
 
         # No workspace — create via SECURITY DEFINER RPC
         ws_name = f"{email}'s Workspace"
