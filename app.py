@@ -496,7 +496,6 @@ def show_dashboard():
                 active_queries = active_queries[:3]
             run_citation_check(token, project["id"], project["domain"],
                 active_queries, PERPLEXITY_API_KEY)
-            st.rerun()
 
     # --- Results summary ---
     results = get_latest_results(token, project["id"])
