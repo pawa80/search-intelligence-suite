@@ -302,6 +302,7 @@ def run_citation_check(access_token, project_id, domain, queries, api_key):
             checked += 1
         except Exception as e:
             failures += 1
+            last_error = str(e)
 
         if i < total - 1:
             time.sleep(1)
@@ -312,7 +313,10 @@ def run_citation_check(access_token, project_id, domain, queries, api_key):
     msg = f"Done! {checked}/{total} queries checked."
     if failures:
         msg += f" {failures} failed."
-    st.success(msg)
+        st.warning(msg)
+        st.error(f"Last error: {last_error}")
+    else:
+        st.success(msg)
 
 
 def get_latest_results(access_token, project_id):
@@ -477,15 +481,19 @@ def show_dashboard():
     # --- Citation check ---
     if queries:
         st.divider()
-        col_btn, col_info = st.columns([1, 3])
+        col_btn, col_test, col_info = st.columns([1, 1, 2])
         with col_btn:
             run_check = st.button("Run Citation Check")
+        with col_test:
+            run_test = st.button("Test (3 queries)")
         with col_info:
             if not PERPLEXITY_API_KEY:
                 st.warning("Set PERPLEXITY_API_KEY to run checks.")
 
-        if run_check and PERPLEXITY_API_KEY:
+        if (run_check or run_test) and PERPLEXITY_API_KEY:
             active_queries = [q for q in queries if q.get("is_active", True)]
+            if run_test:
+                active_queries = active_queries[:3]
             run_citation_check(token, project["id"], project["domain"],
                 active_queries, PERPLEXITY_API_KEY)
             st.rerun()
