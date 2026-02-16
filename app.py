@@ -3,7 +3,10 @@ from supabase import create_client
 import httpx
 import csv
 import io
+import json
+import time
 import os
+from datetime import date
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,6 +22,7 @@ def get_secret(key):
 
 SUPABASE_URL = get_secret("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
+PERPLEXITY_API_KEY = get_secret("PERPLEXITY_API_KEY")
 
 # Unauthenticated client for auth operations only
 supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -56,9 +60,24 @@ def db_request(method, table, access_token, params=None, body=None):
 
     if r.status_code >= 400:
         raise Exception(f"DB {method} {table}: {r.status_code} {r.text}")
-    # DELETE with 200 may return rows, 204 returns empty
     if r.status_code == 204:
         return []
+    return r.json()
+
+
+def db_upsert(table, access_token, body, on_conflict):
+    """UPSERT via PostgREST — insert or update on conflict."""
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation,resolution=merge-duplicates",
+    }
+    r = httpx.post(url, headers=headers, json=body,
+        params={"on_conflict": on_conflict})
+    if r.status_code >= 400:
+        raise Exception(f"DB UPSERT {table}: {r.status_code} {r.text}")
     return r.json()
 
 
@@ -211,6 +230,105 @@ def delete_query(access_token, query_id):
         return False
 
 
+# --- Citation engine ---
+
+def check_citation(query_text, domain, api_key):
+    """Check if domain appears in Perplexity's sources for a query."""
+    response = httpx.post(
+        "https://api.perplexity.ai/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "sonar",
+            "messages": [{"role": "user", "content": query_text}],
+        },
+        timeout=30.0,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    # Citations may be under "citations" or "sources"
+    citations = data.get("citations", data.get("sources", []))
+    if not isinstance(citations, list):
+        citations = []
+
+    appears = False
+    position = None
+    citation_url = None
+
+    for i, url in enumerate(citations):
+        if domain.lower() in url.lower():
+            appears = True
+            position = i + 1
+            citation_url = url
+            break
+
+    return {
+        "appears": appears,
+        "position": position,
+        "citation_url": citation_url,
+        "raw_sources": citations,
+    }
+
+
+def run_citation_check(access_token, project_id, domain, queries, api_key):
+    """Run citation check for all queries. Shows progress in Streamlit."""
+    total = len(queries)
+    checked = 0
+    failures = 0
+    today = str(date.today())
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i, q in enumerate(queries):
+        status_text.text(f"Checking {i + 1}/{total}: {q['query_text'][:60]}...")
+        progress_bar.progress((i + 1) / total)
+
+        try:
+            result = check_citation(q["query_text"], domain, api_key)
+            db_upsert("geo_check_results", access_token, {
+                "query_id": q["id"],
+                "project_id": project_id,
+                "check_date": today,
+                "appears": result["appears"],
+                "position": result["position"],
+                "citation_url": result["citation_url"],
+                "engine": "perplexity",
+                "raw_sources": json.dumps(result["raw_sources"]),
+            }, on_conflict="query_id,engine,check_date")
+            checked += 1
+        except Exception as e:
+            failures += 1
+
+        if i < total - 1:
+            time.sleep(1)
+
+    progress_bar.empty()
+    status_text.empty()
+
+    msg = f"Done! {checked}/{total} queries checked."
+    if failures:
+        msg += f" {failures} failed."
+    st.success(msg)
+
+
+def get_latest_results(access_token, project_id):
+    """Get the most recent citation check results for a project."""
+    try:
+        return db_request("GET", "geo_check_results", access_token,
+            params={
+                "select": "query_id,check_date,appears,position,citation_url,raw_sources",
+                "project_id": f"eq.{project_id}",
+                "order": "check_date.desc,created_at.desc",
+            })
+    except Exception as e:
+        st.session_state.error = str(e)
+        return []
+
+
 # --- UI: Auth page ---
 
 def show_auth_page():
@@ -287,10 +405,8 @@ def show_dashboard():
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
 
-        # Project selector
         if projects:
             project_names = [p["name"] for p in projects]
-            # Find current index
             current_idx = 0
             if st.session_state.selected_project_id:
                 for i, p in enumerate(projects):
@@ -301,7 +417,6 @@ def show_dashboard():
             selected_project = next(p for p in projects if p["name"] == selected_name)
             st.session_state.selected_project_id = selected_project["id"]
 
-        # Create project
         with st.expander("Create New Project"):
             with st.form("create_project_form"):
                 p_name = st.text_input("Project name", key="new_project_name")
@@ -359,9 +474,55 @@ def show_dashboard():
     else:
         st.info("Add queries to start monitoring AI search citations.")
 
-    st.divider()
+    # --- Citation check ---
+    if queries:
+        st.divider()
+        col_btn, col_info = st.columns([1, 3])
+        with col_btn:
+            run_check = st.button("Run Citation Check")
+        with col_info:
+            if not PERPLEXITY_API_KEY:
+                st.warning("Set PERPLEXITY_API_KEY to run checks.")
+
+        if run_check and PERPLEXITY_API_KEY:
+            active_queries = [q for q in queries if q.get("is_active", True)]
+            run_citation_check(token, project["id"], project["domain"],
+                active_queries, PERPLEXITY_API_KEY)
+            st.rerun()
+
+    # --- Results summary ---
+    results = get_latest_results(token, project["id"])
+    if results:
+        # Get latest check date
+        latest_date = results[0]["check_date"] if results else None
+        # Filter to latest date only
+        latest_results = [r for r in results if r["check_date"] == latest_date]
+
+        # Build query_id → query_text lookup
+        q_lookup = {q["id"]: q["query_text"] for q in queries}
+
+        cited = sum(1 for r in latest_results if r["appears"])
+        total = len(latest_results)
+        rate = (cited / total * 100) if total > 0 else 0
+
+        st.divider()
+        st.subheader("Citation Results")
+        st.markdown(f"**Last check:** {latest_date}")
+        st.markdown(f"**{cited}/{total}** queries cite {project['domain']} (**{rate:.1f}%**)")
+
+        # Results table
+        table_data = []
+        for r in latest_results:
+            table_data.append({
+                "Query": q_lookup.get(r["query_id"], "Unknown"),
+                "Cited": "✓" if r["appears"] else "✗",
+                "Position": r["position"] or "—",
+                "Citation URL": r["citation_url"] or "",
+            })
+        st.dataframe(table_data, use_container_width=True, hide_index=True)
 
     # --- Add queries ---
+    st.divider()
     st.subheader("Add Queries")
     tab_single, tab_bulk, tab_csv = st.tabs(["Single", "Bulk Text", "CSV Upload"])
 
