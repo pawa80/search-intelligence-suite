@@ -1,10 +1,13 @@
 import streamlit as st
 from supabase import create_client
 import httpx
+import csv
+import io
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
 
 # Read from st.secrets (Streamlit Cloud) or .env (local)
 def get_secret(key):
@@ -12,6 +15,7 @@ def get_secret(key):
         return st.secrets[key]
     except (KeyError, FileNotFoundError):
         return os.getenv(key)
+
 
 SUPABASE_URL = get_secret("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_secret("SUPABASE_ANON_KEY")
@@ -23,9 +27,13 @@ st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", lay
 
 
 def init_session_state():
-    for key in ["user", "workspace", "access_token", "error"]:
+    defaults = {
+        "user": None, "workspace": None, "access_token": None,
+        "error": None, "selected_project_id": None,
+    }
+    for key, val in defaults.items():
         if key not in st.session_state:
-            st.session_state[key] = None
+            st.session_state[key] = val
 
 
 def db_request(method, table, access_token, params=None, body=None):
@@ -41,13 +49,34 @@ def db_request(method, table, access_token, params=None, body=None):
         r = httpx.get(url, headers=headers, params=params)
     elif method == "POST":
         r = httpx.post(url, headers=headers, json=body)
+    elif method == "DELETE":
+        r = httpx.delete(url, headers=headers, params=params)
     else:
         raise ValueError(f"Unsupported method: {method}")
 
     if r.status_code >= 400:
         raise Exception(f"DB {method} {table}: {r.status_code} {r.text}")
+    # DELETE with 200 may return rows, 204 returns empty
+    if r.status_code == 204:
+        return []
     return r.json()
 
+
+def rpc_request(fn_name, access_token, params):
+    """Call a Supabase RPC function."""
+    url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    r = httpx.post(url, headers=headers, json=params)
+    if r.status_code >= 400:
+        raise Exception(f"RPC {fn_name}: {r.status_code} {r.text}")
+    return r.json()
+
+
+# --- Auth functions ---
 
 def sign_up(email, password):
     try:
@@ -79,39 +108,22 @@ def sign_in(email, password):
         return None
 
 
-def rpc_request(fn_name, access_token, params):
-    """Call a Supabase RPC function."""
-    url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
-    headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-    r = httpx.post(url, headers=headers, json=params)
-    if r.status_code >= 400:
-        raise Exception(f"RPC {fn_name}: {r.status_code} {r.text}")
-    return r.json()
-
-
 def ensure_workspace(user, access_token):
     """Check if user has a workspace; create one if not."""
     user_id = str(user.id)
     email = user.email
 
     try:
-        # Check existing workspace membership
         rows = db_request("GET", "workspace_members", access_token,
             params={"select": "workspace_id", "user_id": f"eq.{user_id}"})
 
         if rows and len(rows) > 0:
             ws_id = rows[0]["workspace_id"]
-            # Fetch workspace name separately
             ws_rows = db_request("GET", "workspaces", access_token,
                 params={"select": "id,name", "id": f"eq.{ws_id}"})
             if ws_rows:
                 return {"id": ws_rows[0]["id"], "name": ws_rows[0]["name"]}
 
-        # No workspace — create via SECURITY DEFINER RPC
         ws_name = f"{email}'s Workspace"
         workspace_id = rpc_request("create_workspace_for_user", access_token,
             {"ws_name": ws_name, "ws_user_id": user_id})
@@ -125,18 +137,86 @@ def ensure_workspace(user, access_token):
 
 def logout():
     supabase.auth.sign_out()
-    st.session_state.user = None
-    st.session_state.workspace = None
-    st.session_state.access_token = None
-    st.session_state.error = None
+    for key in ["user", "workspace", "access_token", "error", "selected_project_id"]:
+        st.session_state[key] = None
     st.rerun()
 
+
+# --- Data functions ---
+
+def get_projects(access_token, workspace_id):
+    try:
+        return db_request("GET", "projects", access_token,
+            params={"select": "id,name,domain,country,language,created_at",
+                     "workspace_id": f"eq.{workspace_id}",
+                     "order": "created_at.asc"})
+    except Exception as e:
+        st.session_state.error = str(e)
+        return []
+
+
+def create_project(access_token, workspace_id, name, domain, country, language):
+    try:
+        body = {"workspace_id": workspace_id, "name": name, "domain": domain}
+        if country:
+            body["country"] = country
+        if language:
+            body["language"] = language
+        rows = db_request("POST", "projects", access_token, body=body)
+        return rows[0] if rows else None
+    except Exception as e:
+        st.session_state.error = str(e)
+        return None
+
+
+def get_queries(access_token, project_id):
+    try:
+        return db_request("GET", "queries", access_token,
+            params={"select": "id,query_text,category,is_active,created_at",
+                     "project_id": f"eq.{project_id}",
+                     "order": "created_at.asc"})
+    except Exception as e:
+        st.session_state.error = str(e)
+        return []
+
+
+def add_queries(access_token, project_id, query_list):
+    """Insert queries, skipping duplicates. Returns (added_count, skipped_count)."""
+    added = 0
+    skipped = 0
+    for q in query_list:
+        text = q["query_text"].strip()
+        cat = q["category"].strip()
+        if not text:
+            continue
+        try:
+            db_request("POST", "queries", access_token,
+                body={"project_id": project_id, "query_text": text, "category": cat})
+            added += 1
+        except Exception as e:
+            if "duplicate" in str(e).lower() or "23505" in str(e):
+                skipped += 1
+            else:
+                raise
+    return added, skipped
+
+
+def delete_query(access_token, query_id):
+    try:
+        db_request("DELETE", "queries", access_token,
+            params={"id": f"eq.{query_id}"})
+        return True
+    except Exception as e:
+        st.session_state.error = str(e)
+        return False
+
+
+# --- UI: Auth page ---
 
 def show_auth_page():
     st.title("Search Intelligence Suite")
     st.markdown("AI-powered search optimisation tools")
 
-    # Show persistent error if any
     if st.session_state.error:
         st.error(f"Error: {st.session_state.error}")
         if st.button("Clear error"):
@@ -192,20 +272,170 @@ def show_auth_page():
                             st.success("Account created! Check your email to confirm, then log in.")
 
 
+# --- UI: Dashboard ---
+
 def show_dashboard():
     workspace = st.session_state.workspace
     user = st.session_state.user
+    token = st.session_state.access_token
 
+    # Load projects
+    projects = get_projects(token, workspace["id"])
+
+    # --- Sidebar ---
     with st.sidebar:
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
+
+        # Project selector
+        if projects:
+            project_names = [p["name"] for p in projects]
+            # Find current index
+            current_idx = 0
+            if st.session_state.selected_project_id:
+                for i, p in enumerate(projects):
+                    if p["id"] == st.session_state.selected_project_id:
+                        current_idx = i
+                        break
+            selected_name = st.selectbox("Project", project_names, index=current_idx)
+            selected_project = next(p for p in projects if p["name"] == selected_name)
+            st.session_state.selected_project_id = selected_project["id"]
+
+        # Create project
+        with st.expander("Create New Project"):
+            with st.form("create_project_form"):
+                p_name = st.text_input("Project name", key="new_project_name")
+                p_domain = st.text_input("Domain", key="new_project_domain",
+                    placeholder="e.g. wtatennis.com")
+                p_country = st.text_input("Country (optional)", key="new_project_country",
+                    placeholder="e.g. US")
+                p_language = st.text_input("Language (optional)", key="new_project_language",
+                    placeholder="e.g. en")
+                if st.form_submit_button("Create Project"):
+                    if not p_name or not p_domain:
+                        st.error("Name and domain are required.")
+                    else:
+                        result = create_project(token, workspace["id"],
+                            p_name, p_domain, p_country, p_language)
+                        if result:
+                            st.session_state.selected_project_id = result["id"]
+                            st.rerun()
+
+        st.divider()
         if st.button("Logout"):
             logout()
 
-    st.title("Welcome to Search Intelligence Suite")
-    st.markdown(f"**Workspace:** {workspace['name']}")
-    st.info("No projects yet — create your first project to start tracking.")
+    # --- Show errors ---
+    if st.session_state.error:
+        st.error(f"Error: {st.session_state.error}")
+        if st.button("Clear error"):
+            st.session_state.error = None
+            st.rerun()
 
+    # --- Main area ---
+    if not projects:
+        st.title("Welcome to Search Intelligence Suite")
+        st.info("Create your first project to start tracking.")
+        return
+
+    if not st.session_state.selected_project_id:
+        st.session_state.selected_project_id = projects[0]["id"]
+
+    project = next((p for p in projects if p["id"] == st.session_state.selected_project_id), projects[0])
+
+    # Project header
+    st.title(project["name"])
+    st.caption(f"Domain: {project['domain']}"
+        + (f" · Country: {project['country']}" if project.get("country") else "")
+        + (f" · Language: {project['language']}" if project.get("language") else ""))
+
+    # Load queries
+    queries = get_queries(token, project["id"])
+
+    # Query summary
+    if queries:
+        categories = set(q["category"] for q in queries)
+        st.markdown(f"**{len(queries)} queries** across **{len(categories)} categories**")
+    else:
+        st.info("Add queries to start monitoring AI search citations.")
+
+    st.divider()
+
+    # --- Add queries ---
+    st.subheader("Add Queries")
+    tab_single, tab_bulk, tab_csv = st.tabs(["Single", "Bulk Text", "CSV Upload"])
+
+    with tab_single:
+        with st.form("add_single_query"):
+            q_text = st.text_input("Query", key="single_query_text")
+            q_cat = st.text_input("Category", key="single_query_category")
+            if st.form_submit_button("Add"):
+                if not q_text or not q_cat:
+                    st.error("Query and category are required.")
+                else:
+                    added, skipped = add_queries(token, project["id"],
+                        [{"query_text": q_text, "category": q_cat}])
+                    if added:
+                        st.success(f"Added 1 query.")
+                        st.rerun()
+                    elif skipped:
+                        st.warning("Query already exists — skipped.")
+
+    with tab_bulk:
+        with st.form("add_bulk_queries"):
+            bulk_text = st.text_area("Queries (one per line)", key="bulk_query_text",
+                height=150)
+            bulk_cat = st.text_input("Category for all", key="bulk_query_category")
+            if st.form_submit_button("Add All"):
+                if not bulk_text or not bulk_cat:
+                    st.error("Queries and category are required.")
+                else:
+                    lines = [l.strip() for l in bulk_text.strip().split("\n") if l.strip()]
+                    query_list = [{"query_text": l, "category": bulk_cat} for l in lines]
+                    added, skipped = add_queries(token, project["id"], query_list)
+                    msg = f"Added {added} queries."
+                    if skipped:
+                        msg += f" {skipped} duplicates skipped."
+                    st.success(msg)
+                    st.rerun()
+
+    with tab_csv:
+        uploaded = st.file_uploader("Upload CSV (columns: query_text, category)",
+            type=["csv"], key="csv_upload")
+        if uploaded:
+            try:
+                content = uploaded.getvalue().decode("utf-8")
+                reader = csv.DictReader(io.StringIO(content))
+                if "query_text" not in reader.fieldnames or "category" not in reader.fieldnames:
+                    st.error("CSV must have 'query_text' and 'category' columns.")
+                else:
+                    rows = [{"query_text": r["query_text"], "category": r["category"]}
+                            for r in reader if r.get("query_text")]
+                    if rows:
+                        added, skipped = add_queries(token, project["id"], rows)
+                        msg = f"Added {added} queries."
+                        if skipped:
+                            msg += f" {skipped} duplicates skipped."
+                        st.success(msg)
+                    else:
+                        st.warning("CSV had no valid rows.")
+            except Exception as e:
+                st.error(f"CSV parsing error: {e}")
+
+    # --- Query list ---
+    if queries:
+        st.divider()
+        st.subheader("Queries")
+        for q in queries:
+            col1, col2, col3 = st.columns([4, 2, 1])
+            col1.text(q["query_text"])
+            col2.text(q["category"])
+            if col3.button("Delete", key=f"del_{q['id']}"):
+                if delete_query(token, q["id"]):
+                    st.rerun()
+
+
+# --- Main ---
 
 def main():
     init_session_state()
