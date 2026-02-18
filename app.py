@@ -6,7 +6,9 @@ import io
 import json
 import time
 import os
+from collections import Counter
 from datetime import date
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -497,110 +499,196 @@ def show_dashboard():
             run_citation_check(token, project["id"], project["domain"],
                 active_queries, PERPLEXITY_API_KEY)
 
-    # --- Results summary ---
+    # --- Dashboard ---
     results = get_latest_results(token, project["id"])
-    if results:
-        # Get latest check date
-        latest_date = results[0]["check_date"] if results else None
-        # Filter to latest date only
-        latest_results = [r for r in results if r["check_date"] == latest_date]
+    q_lookup = {q["id"]: q for q in queries}
 
-        # Build query_id → query_text lookup
-        q_lookup = {q["id"]: q["query_text"] for q in queries}
+    if results:
+        # Split results by check date
+        latest_date = results[0]["check_date"]
+        latest_results = [r for r in results if r["check_date"] == latest_date]
+        all_dates = sorted(set(r["check_date"] for r in results))
 
         cited = sum(1 for r in latest_results if r["appears"])
         total = len(latest_results)
         rate = (cited / total * 100) if total > 0 else 0
+        positions = [r["position"] for r in latest_results if r["appears"] and r["position"]]
+        avg_pos = sum(positions) / len(positions) if positions else 0
 
+        # Top metrics
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Citation Rate", f"{cited}/{total} ({rate:.1f}%)")
+        m2.metric("Last Check", latest_date)
+        m3.metric("Avg Position", f"{avg_pos:.1f}" if positions else "—")
+
+        # Trend chart (only if multiple dates)
+        if len(all_dates) > 1:
+            st.divider()
+            st.subheader("Citation Rate Over Time")
+            trend_data = {}
+            for d in all_dates:
+                day_results = [r for r in results if r["check_date"] == d]
+                day_cited = sum(1 for r in day_results if r["appears"])
+                day_total = len(day_results)
+                trend_data[d] = (day_cited / day_total * 100) if day_total > 0 else 0
+            st.line_chart({"Citation Rate %": trend_data})
+        elif len(all_dates) == 1:
+            st.caption("Run citation checks on different days to see trends.")
+
+        # Category breakdown
         st.divider()
-        st.subheader("Citation Results")
-        st.markdown(f"**Last check:** {latest_date}")
-        st.markdown(f"**{cited}/{total}** queries cite {project['domain']} (**{rate:.1f}%**)")
-
-        # Results table
-        table_data = []
+        st.subheader("Category Breakdown")
+        cat_stats = {}
         for r in latest_results:
-            table_data.append({
-                "Query": q_lookup.get(r["query_id"], "Unknown"),
-                "Cited": "✓" if r["appears"] else "✗",
-                "Position": r["position"] or "—",
-                "Citation URL": r["citation_url"] or "",
+            q_info = q_lookup.get(r["query_id"])
+            cat = q_info["category"] if q_info else "Unknown"
+            if cat not in cat_stats:
+                cat_stats[cat] = {"queries": 0, "cited": 0, "positions": []}
+            cat_stats[cat]["queries"] += 1
+            if r["appears"]:
+                cat_stats[cat]["cited"] += 1
+                if r["position"]:
+                    cat_stats[cat]["positions"].append(r["position"])
+
+        cat_table = []
+        for cat, s in cat_stats.items():
+            cat_rate = (s["cited"] / s["queries"] * 100) if s["queries"] > 0 else 0
+            cat_avg = sum(s["positions"]) / len(s["positions"]) if s["positions"] else None
+            cat_table.append({
+                "Category": cat,
+                "Queries": s["queries"],
+                "Cited": s["cited"],
+                "Rate": f"{cat_rate:.0f}%",
+                "Avg Position": f"{cat_avg:.1f}" if cat_avg else "—",
             })
-        st.dataframe(table_data, use_container_width=True, hide_index=True)
+        cat_table.sort(key=lambda x: float(x["Rate"].rstrip("%")), reverse=True)
+        st.dataframe(cat_table, use_container_width=True, hide_index=True)
 
-    # --- Add queries ---
+        # Authority set analysis
+        st.divider()
+        st.subheader("Authority Set — Top Sources")
+        domain_counter = Counter()
+        for r in latest_results:
+            sources = r.get("raw_sources")
+            if isinstance(sources, str):
+                try:
+                    sources = json.loads(sources)
+                except (json.JSONDecodeError, TypeError):
+                    sources = []
+            if isinstance(sources, list):
+                for url in sources:
+                    try:
+                        netloc = urlparse(url).netloc
+                        if netloc:
+                            domain_counter[netloc] += 1
+                    except Exception:
+                        pass
+
+        if domain_counter:
+            source_table = []
+            for domain, count in domain_counter.most_common(15):
+                pct = (count / total * 100) if total > 0 else 0
+                source_table.append({
+                    "Source Domain": domain,
+                    "Appearances": count,
+                    "% of Queries": f"{pct:.0f}%",
+                })
+            st.dataframe(source_table, use_container_width=True, hide_index=True)
+        else:
+            st.info("No source data available.")
+
+        # Uncited queries
+        uncited = [r for r in latest_results if not r["appears"]]
+        if uncited:
+            st.divider()
+            st.subheader(f"Uncited Queries ({len(uncited)})")
+            uncited_table = []
+            for r in uncited:
+                q_info = q_lookup.get(r["query_id"])
+                uncited_table.append({
+                    "Query": q_info["query_text"] if q_info else "Unknown",
+                    "Category": q_info["category"] if q_info else "Unknown",
+                })
+            uncited_table.sort(key=lambda x: x["Category"])
+            st.dataframe(uncited_table, use_container_width=True, hide_index=True)
+
+    else:
+        st.info("No citation data yet. Click 'Run Citation Check' to start.")
+
+    # --- Manage Queries (in expander) ---
     st.divider()
-    st.subheader("Add Queries")
-    tab_single, tab_bulk, tab_csv = st.tabs(["Single", "Bulk Text", "CSV Upload"])
+    with st.expander("Manage Queries"):
+        st.subheader("Add Queries")
+        tab_single, tab_bulk, tab_csv = st.tabs(["Single", "Bulk Text", "CSV Upload"])
 
-    with tab_single:
-        with st.form("add_single_query"):
-            q_text = st.text_input("Query", key="single_query_text")
-            q_cat = st.text_input("Category", key="single_query_category")
-            if st.form_submit_button("Add"):
-                if not q_text or not q_cat:
-                    st.error("Query and category are required.")
-                else:
-                    added, skipped = add_queries(token, project["id"],
-                        [{"query_text": q_text, "category": q_cat}])
-                    if added:
-                        st.success(f"Added 1 query.")
-                        st.rerun()
-                    elif skipped:
-                        st.warning("Query already exists — skipped.")
+        with tab_single:
+            with st.form("add_single_query"):
+                q_text = st.text_input("Query", key="single_query_text")
+                q_cat = st.text_input("Category", key="single_query_category")
+                if st.form_submit_button("Add"):
+                    if not q_text or not q_cat:
+                        st.error("Query and category are required.")
+                    else:
+                        added, skipped = add_queries(token, project["id"],
+                            [{"query_text": q_text, "category": q_cat}])
+                        if added:
+                            st.success(f"Added 1 query.")
+                            st.rerun()
+                        elif skipped:
+                            st.warning("Query already exists — skipped.")
 
-    with tab_bulk:
-        with st.form("add_bulk_queries"):
-            bulk_text = st.text_area("Queries (one per line)", key="bulk_query_text",
-                height=150)
-            bulk_cat = st.text_input("Category for all", key="bulk_query_category")
-            if st.form_submit_button("Add All"):
-                if not bulk_text or not bulk_cat:
-                    st.error("Queries and category are required.")
-                else:
-                    lines = [l.strip() for l in bulk_text.strip().split("\n") if l.strip()]
-                    query_list = [{"query_text": l, "category": bulk_cat} for l in lines]
-                    added, skipped = add_queries(token, project["id"], query_list)
-                    msg = f"Added {added} queries."
-                    if skipped:
-                        msg += f" {skipped} duplicates skipped."
-                    st.success(msg)
-                    st.rerun()
-
-    with tab_csv:
-        uploaded = st.file_uploader("Upload CSV (columns: query_text, category)",
-            type=["csv"], key="csv_upload")
-        if uploaded:
-            try:
-                content = uploaded.getvalue().decode("utf-8")
-                reader = csv.DictReader(io.StringIO(content))
-                if "query_text" not in reader.fieldnames or "category" not in reader.fieldnames:
-                    st.error("CSV must have 'query_text' and 'category' columns.")
-                else:
-                    rows = [{"query_text": r["query_text"], "category": r["category"]}
-                            for r in reader if r.get("query_text")]
-                    if rows:
-                        added, skipped = add_queries(token, project["id"], rows)
+        with tab_bulk:
+            with st.form("add_bulk_queries"):
+                bulk_text = st.text_area("Queries (one per line)", key="bulk_query_text",
+                    height=150)
+                bulk_cat = st.text_input("Category for all", key="bulk_query_category")
+                if st.form_submit_button("Add All"):
+                    if not bulk_text or not bulk_cat:
+                        st.error("Queries and category are required.")
+                    else:
+                        lines = [l.strip() for l in bulk_text.strip().split("\n") if l.strip()]
+                        query_list = [{"query_text": l, "category": bulk_cat} for l in lines]
+                        added, skipped = add_queries(token, project["id"], query_list)
                         msg = f"Added {added} queries."
                         if skipped:
                             msg += f" {skipped} duplicates skipped."
                         st.success(msg)
-                    else:
-                        st.warning("CSV had no valid rows.")
-            except Exception as e:
-                st.error(f"CSV parsing error: {e}")
+                        st.rerun()
 
-    # --- Query list ---
-    if queries:
-        st.divider()
-        st.subheader("Queries")
-        for q in queries:
-            col1, col2, col3 = st.columns([4, 2, 1])
-            col1.text(q["query_text"])
-            col2.text(q["category"])
-            if col3.button("Delete", key=f"del_{q['id']}"):
-                if delete_query(token, q["id"]):
-                    st.rerun()
+        with tab_csv:
+            uploaded = st.file_uploader("Upload CSV (columns: query_text, category)",
+                type=["csv"], key="csv_upload")
+            if uploaded:
+                try:
+                    content = uploaded.getvalue().decode("utf-8")
+                    reader = csv.DictReader(io.StringIO(content))
+                    if "query_text" not in reader.fieldnames or "category" not in reader.fieldnames:
+                        st.error("CSV must have 'query_text' and 'category' columns.")
+                    else:
+                        rows = [{"query_text": r["query_text"], "category": r["category"]}
+                                for r in reader if r.get("query_text")]
+                        if rows:
+                            added, skipped = add_queries(token, project["id"], rows)
+                            msg = f"Added {added} queries."
+                            if skipped:
+                                msg += f" {skipped} duplicates skipped."
+                            st.success(msg)
+                        else:
+                            st.warning("CSV had no valid rows.")
+                except Exception as e:
+                    st.error(f"CSV parsing error: {e}")
+
+        # Query list
+        if queries:
+            st.divider()
+            st.subheader("Queries")
+            for q in queries:
+                col1, col2, col3 = st.columns([4, 2, 1])
+                col1.text(q["query_text"])
+                col2.text(q["category"])
+                if col3.button("Delete", key=f"del_{q['id']}"):
+                    if delete_query(token, q["id"]):
+                        st.rerun()
 
 
 # --- Main ---

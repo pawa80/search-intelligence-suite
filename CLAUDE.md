@@ -73,9 +73,9 @@ Pal + Morten collaboration.
 - **Section 2**: Auth flow — signup, login, auto-workspace creation, logout, re-login finds existing workspace
 - **Section 3**: Project + query management — CRUD for projects, single/bulk/CSV query add, delete queries
 - **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate. **TESTED AND WORKING** — 142/149 queries checked (7 failed, likely API timeouts). Results persist and display correctly.
+- **Section 5**: Dashboard visualisations — top metrics (citation rate, last check, avg position via `st.metric`), category breakdown table (sorted by rate), authority set analysis (top 15 source domains from raw_sources), uncited queries list, trend chart (`st.line_chart` when multiple check dates exist). Query management moved to expander. Zero new dependencies — uses stdlib Counter, urlparse, and built-in Streamlit charts.
 
 ## Next Up
-- **Section 5**: Dashboard visualisations (trend charts, citation rate over time)
 - **Section 6**: Data import (historical GEO Tracker data migration)
 - **Section 7**: Mobile optimisation
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
@@ -95,7 +95,7 @@ When adding new tables that reference `projects` or `workspaces`:
 - The Perplexity key has a hyphen: `pplx-` (was stripped during paste, caused 401)
 
 ## Rolling Handover
-Last session: Feb 16 2026
+Last session: Feb 16 2026 (session 3)
 
 ### Feb 16 2026 — Sections 2-4 (2 sessions)
 **Session 1** (earlier):
@@ -114,3 +114,13 @@ Last session: Feb 16 2026
 - **Final result**: 142/149 queries checked successfully, 7 failed (likely API timeouts). Results persist and display.
 - Commits: 1e55ee2, 0e71a54, 704abdf, d7b2bae
 - Test user: pwaagbo@gmail.com (workspace created, login/logout verified)
+
+### Feb 16 2026 — Section 5 Dashboard (session 3)
+- Replaced basic results table with full dashboard: top metrics, category breakdown, authority set, uncited queries, trend chart
+- Added `Counter` + `urlparse` imports (stdlib only, zero new deps)
+- Query management (add/delete) moved into `st.expander("Manage Queries")`
+- Trend chart uses `st.line_chart()` — only renders when multiple check dates exist
+- Authority set parses `raw_sources` JSON, extracts netloc, shows top 15 domains
+- **NOT YET COMMITTED** — code ready, waiting on test run confirmation
+- **RLS BUG FIXED (session 4)**: Root cause was duplicate policies (old broken ones with inline subqueries never removed) + missing UPDATE policy for UPSERT conflict path. Fix: dropped all 4 duplicate policies via DO block, recreated 3 clean policies (`geo_results_insert`, `geo_results_select`, `geo_results_update`) all using `user_owns_project()` SECURITY DEFINER. Testing in progress.
+- **Next**: Confirm test run passes → commit+push → Section 6 (data import)
