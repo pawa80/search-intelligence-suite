@@ -74,6 +74,7 @@ Pal + Morten collaboration.
 - **Section 3**: Project + query management — CRUD for projects, single/bulk/CSV query add, delete queries
 - **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate. **TESTED AND WORKING** — 142/149 queries checked (7 failed, likely API timeouts). Results persist and display correctly.
 - **Section 5**: Dashboard visualisations — top metrics (citation rate, last check, avg position via `st.metric`), category breakdown table (sorted by rate), authority set analysis (top 15 source domains from raw_sources), uncited queries list, trend chart (`st.line_chart` when multiple check dates exist). Query management moved to expander. Zero new dependencies — uses stdlib Counter, urlparse, and built-in Streamlit charts.
+- **Web Crawler**: SEMrush-style SEO crawler + sitemap checker. Standalone module (`crawler/`), accessible via sidebar tool selector. See Crawler section below.
 
 ## Next Up
 - **Section 6**: Data import (historical GEO Tracker data migration)
@@ -94,8 +95,60 @@ When adding new tables that reference `projects` or `workspaces`:
 - Pasting can introduce invisible characters or strip hyphens — always verify the key manually
 - The Perplexity key has a hyphen: `pplx-` (was stripped during paste, caused 401)
 
+## Web Crawler Module
+
+### Architecture
+- **Location**: `crawler/` package — `crawler_engine.py`, `sitemap_parser.py`, `crawler_ui.py`
+- **Access**: Sidebar tool selector in `app.py` ("Rank Tracker" / "Web Crawler")
+- **No Supabase** — standalone, no database. Phase 2 could persist to `pages` table.
+- **Dependencies added**: `beautifulsoup4`, `pandas`, `truststore` (OS cert store for Windows dev)
+
+### Web Crawl Tab (SEMrush-style SEO crawler)
+- **Modes**: "Crawl from URL" (BFS link discovery) or "Check URL list" (paste URLs)
+- **Crawl behaviour**: Start from URL → discover links → follow them → repeat to max depth
+- **Sitemap cross-reference**: Fetches `/sitemap.xml` in background before crawl, marks each discovered URL "In Sitemap: Yes/No". Sitemap does NOT guide what gets crawled.
+- **15 columns per URL**: URL, Title, Status, Depth, Referrer, Time, Meta Desc, OG Desc, H1, H2, Hero Alt, Canonical, OG URL, In Sitemap, JSON-LD
+- **Defaults**: max depth 10, max pages 20 (up to 2000), skip duplicates on
+- **Delay**: 0.5s between requests, 10s timeout, custom User-Agent
+
+### Sitemap Check Tab
+- **Input**: Domain or URL (auto-appends `/sitemap.xml`)
+- **Handles**: Sitemap index files (nested sitemaps)
+- **Always checks HTTP status** for each URL (with progress)
+- **Columns**: URL, Status, Last Modified, Change Freq, Priority
+
+### Export
+- CSV download with domain-name + date filename
+- Copy to clipboard (TSV format)
+- URL filter on results
+
+### Original Reference
+- `_reference/crawler-v5.06.html` — original Perplexity/Decodo HTML crawler
+- Original uses Decodo scraper API as proxy — our version uses direct httpx
+- Some sites with anti-bot protection may block direct requests
+
+### Safety Tag
+- `v1.0-pre-crawler` on commit `001680a` — state before crawler was added
+
 ## Rolling Handover
-Last session: Feb 16 2026 (session 3)
+Last session: Mar 4 2026 (crawler build)
+
+### Mar 4 2026 — Web Crawler module (1 session)
+- Built full `crawler/` package from scratch based on original `crawler-v5.06.html` reference
+- 3 files: `crawler_engine.py` (CrawlerEngine BFS + SEO extraction), `sitemap_parser.py` (XML parse + status check), `crawler_ui.py` (Streamlit UI)
+- Modified `app.py`: sidebar tool selector, import + routing to crawler
+- Added `beautifulsoup4`, `pandas`, `truststore` to requirements.txt
+- **SSL fix**: uv-managed Python 3.12 on Windows lacks CA bundle — `truststore` injects OS cert store
+- **v1 had 6 columns** — upgraded to **15 columns** matching original (meta desc, OG desc, H1, H2, hero alt, canonical, OG URL, JSON-LD, in-sitemap)
+- Sitemap cross-reference: fetched before crawl, used as lookup only (not crawl guide)
+- Default max depth changed from 2 → 10 (SEMrush-style)
+- Sitemap tab: accepts domain, auto-finds /sitemap.xml, always checks HTTP status
+- Safety tag `v1.0-pre-crawler` on commit `001680a`
+- Commits: 3cf06ee, 909d23f, 5babb4c — all pushed to master, auto-deployed
+- **Tested locally**: sitemaps.org crawl (SEO data + sitemap cross-ref working), sitemap parse (84 URLs)
+- **Not tested on Streamlit Cloud yet** — Pal to verify after deploy
+- **Known limitation**: Direct httpx (no proxy) — some anti-bot sites may block. Original used Decodo scraper API.
+- **Next**: Test on Streamlit Cloud, consider Decodo API integration for blocked sites, Phase 2 Supabase persistence
 
 ### Feb 16 2026 — Sections 2-4 (2 sessions)
 **Session 1** (earlier):
@@ -121,6 +174,6 @@ Last session: Feb 16 2026 (session 3)
 - Query management (add/delete) moved into `st.expander("Manage Queries")`
 - Trend chart uses `st.line_chart()` — only renders when multiple check dates exist
 - Authority set parses `raw_sources` JSON, extracts netloc, shows top 15 domains
-- **NOT YET COMMITTED** — code ready, waiting on test run confirmation
-- **RLS BUG FIXED (session 4)**: Root cause was duplicate policies (old broken ones with inline subqueries never removed) + missing UPDATE policy for UPSERT conflict path. Fix: dropped all 4 duplicate policies via DO block, recreated 3 clean policies (`geo_results_insert`, `geo_results_select`, `geo_results_update`) all using `user_owns_project()` SECURITY DEFINER. Testing in progress.
-- **Next**: Confirm test run passes → commit+push → Section 6 (data import)
+- **RLS BUG FIXED (session 4)**: Root cause was duplicate policies (old broken ones with inline subqueries never removed) + missing UPDATE policy for UPSERT conflict path. Fix: dropped all 4 duplicate policies via DO block, recreated 3 clean policies (`geo_results_insert`, `geo_results_select`, `geo_results_update`) all using `user_owns_project()` SECURITY DEFINER.
+- **COMMITTED AND DEPLOYED** — commit 001680a, auto-deployed to Streamlit Cloud. Full 153-query citation check passed.
+- **Next**: Section 6 (data import)
