@@ -1,5 +1,7 @@
 """Streamlit UI for the web crawler and sitemap checker."""
 
+from __future__ import annotations
+
 import streamlit as st
 import pandas as pd
 import io

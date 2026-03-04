@@ -1,4 +1,5 @@
 """Web crawler engine — discovers URLs and extracts SEO data."""
+from __future__ import annotations
 
 import time
 import json

@@ -1,4 +1,5 @@
 """Sitemap XML parser — fetch and parse sitemaps, check status of each URL."""
+from __future__ import annotations
 
 import time
 import httpx
