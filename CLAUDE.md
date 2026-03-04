@@ -90,7 +90,14 @@ When adding new tables that reference `projects` or `workspaces`:
 3. Pattern: `user_owns_project(project_id)` joins projects→workspace_members, bypasses RLS
 4. The nested RLS problem: policy subquery on `projects` triggers `projects` RLS, which may trigger further RLS → silent failures or recursion
 
-## Streamlit Cloud Secrets Gotcha
+## Streamlit Cloud Gotchas
+
+### Python Version
+- Streamlit Cloud runs **Python 3.9** — does NOT support `int | None` or `dict | None` syntax
+- **Always** add `from __future__ import annotations` at top of every new Python file
+- Local dev uses Python 3.12 (uv-managed) so this won't surface locally
+
+### Secrets
 - Secrets must be valid TOML: `KEY = "value"` with quotes
 - Pasting can introduce invisible characters or strip hyphens — always verify the key manually
 - The Perplexity key has a hyphen: `pplx-` (was stripped during paste, caused 401)
