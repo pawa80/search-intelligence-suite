@@ -61,9 +61,17 @@ def _get_domain_from_url(url: str) -> str:
         return "unknown"
 
 
-def show_crawler():
+def show_crawler(project_ctx: dict | None = None):
     """Main entry point for the crawler UI."""
     st.title("Web Crawler")
+
+    # Project context banner
+    if project_ctx:
+        st.info(f"Crawling as part of: **{project_ctx['name']}**")
+        st.session_state["crawler_project_id"] = project_ctx["id"]
+    else:
+        st.warning("No project selected. Results won't be saved.")
+        st.session_state["crawler_project_id"] = None
 
     tab_crawl, tab_sitemap = st.tabs(["Web Crawl", "Sitemap Check"])
 

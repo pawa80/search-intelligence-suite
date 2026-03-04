@@ -460,7 +460,13 @@ def show_dashboard():
 
     # --- Route to selected tool ---
     if st.session_state.get("active_tool") == "Web Crawler":
-        show_crawler()
+        # Pass project context to crawler (if a project is selected)
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_crawler(project_ctx=project_ctx)
         return
 
     # --- Rank Tracker main area ---
