@@ -147,9 +147,14 @@ def _show_crawl_from_url():
         current_url.empty()
         st.session_state["crawl_results"] = results
         st.success(f"Done! Crawled {len(results)} pages.")
+        # Show export immediately
+        if results:
+            df = _results_to_df(results)
+            domain = _get_domain_from_url(results[0].url)
+            _show_results_with_export(df, "crawl", f"{domain}-crawl-results")
 
     # Show previous results if available
-    if "crawl_results" in st.session_state and not run:
+    elif "crawl_results" in st.session_state:
         results = st.session_state["crawl_results"]
         if results:
             df = _results_to_df(results)
@@ -192,8 +197,11 @@ def _show_check_url_list():
         status_text.empty()
         st.session_state["url_list_results"] = results
         st.success(f"Done! Checked {len(results)} URLs.")
+        if results:
+            df = _results_to_df(results)
+            _show_results_with_export(df, "url_list", "url-check-results")
 
-    if "url_list_results" in st.session_state and not run:
+    elif "url_list_results" in st.session_state:
         results = st.session_state["url_list_results"]
         if results:
             df = _results_to_df(results)
@@ -257,8 +265,12 @@ def _show_sitemap_check():
         current_url.empty()
         status_text.success(f"Done! Found {len(checked)} URLs in sitemap.")
         st.session_state["sitemap_results"] = checked
+        if checked:
+            domain = _get_domain_from_url(checked[0].url)
+            df = _sitemap_to_df(checked)
+            _show_results_with_export(df, "sitemap", f"{domain}-sitemap")
 
-    if "sitemap_results" in st.session_state and not run:
+    elif "sitemap_results" in st.session_state:
         entries = st.session_state["sitemap_results"]
         if entries:
             domain = _get_domain_from_url(entries[0].url) if entries else "unknown"
