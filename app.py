@@ -10,6 +10,7 @@ from collections import Counter
 from datetime import date
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+from crawler.crawler_ui import show_crawler
 
 load_dotenv()
 
@@ -411,6 +412,10 @@ def show_dashboard():
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
 
+        # Tool selector
+        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler"], key="active_tool")
+        st.divider()
+
         if projects:
             project_names = [p["name"] for p in projects]
             current_idx = 0
@@ -453,7 +458,12 @@ def show_dashboard():
             st.session_state.error = None
             st.rerun()
 
-    # --- Main area ---
+    # --- Route to selected tool ---
+    if st.session_state.get("active_tool") == "Web Crawler":
+        show_crawler()
+        return
+
+    # --- Rank Tracker main area ---
     if not projects:
         st.title("Welcome to Search Intelligence Suite")
         st.info("Create your first project to start tracking.")
