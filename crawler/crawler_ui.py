@@ -71,9 +71,11 @@ def show_crawler(project_ctx: dict | None = None):
     if project_ctx:
         st.info(f"Crawling as part of: **{project_ctx['name']}**")
         st.session_state["crawler_project_id"] = project_ctx["id"]
+        st.session_state["crawler_project_domain"] = project_ctx.get("domain", "")
     else:
         st.warning("No project selected. Results won't be saved.")
         st.session_state["crawler_project_id"] = None
+        st.session_state["crawler_project_domain"] = ""
 
     tab_crawl, tab_sitemap = st.tabs(["Web Crawl", "Sitemap Check"])
 
@@ -95,9 +97,13 @@ def _show_web_crawl():
 
 
 def _show_crawl_from_url():
+    default_domain = st.session_state.get("crawler_project_domain", "")
+    default_url = f"https://{default_domain}" if default_domain else ""
+
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        start_url = st.text_input("Starting URL", placeholder="https://example.com",
+        start_url = st.text_input("Starting URL", value=default_url,
+                                  placeholder="https://example.com",
                                   key="crawl_start_url")
     with col2:
         max_depth = st.number_input("Max depth", min_value=1, max_value=20, value=10,
