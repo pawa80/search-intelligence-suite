@@ -7,19 +7,7 @@ import csv
 from urllib.parse import urlparse
 
 from crawler.crawler_engine import CrawlerEngine, check_url_list, CrawlResult
-from crawler.sitemap_parser import fetch_sitemap, check_sitemap_urls, SitemapEntry
-
-
-def _status_color(code: int | None) -> str:
-    if code is None:
-        return "gray"
-    if 200 <= code < 300:
-        return "green"
-    if 300 <= code < 400:
-        return "orange"
-    if 400 <= code < 500:
-        return "red"
-    return "darkred"
+from crawler.sitemap_parser import fetch_sitemap_from_domain, check_sitemap_urls, SitemapEntry
 
 
 def _status_badge(code: int | None, error: str = "") -> str:
@@ -31,15 +19,25 @@ def _status_badge(code: int | None, error: str = "") -> str:
 
 
 def _results_to_df(results: list[CrawlResult]) -> pd.DataFrame:
+    """Convert crawl results to a DataFrame with all 15 columns."""
     rows = []
     for r in results:
         rows.append({
             "URL": r.url,
-            "Status": _status_badge(r.status_code, r.error),
             "Title": r.title,
+            "Status": _status_badge(r.status_code, r.error),
             "Depth": r.depth,
             "Referrer": r.referrer,
             "Time (s)": r.response_time,
+            "Meta Desc": r.seo.meta_desc,
+            "OG Desc": r.seo.og_desc,
+            "H1": r.seo.h1,
+            "H2": r.seo.h2,
+            "Hero Alt": r.seo.hero_alt,
+            "Canonical": r.seo.canonical,
+            "OG URL": r.seo.og_url,
+            "In Sitemap": r.in_sitemap,
+            "JSON-LD": r.seo.jsonld[:150] if r.seo.jsonld else "",
         })
     return pd.DataFrame(rows)
 
@@ -56,6 +54,13 @@ def _ensure_scheme(url: str) -> str:
     return url
 
 
+def _get_domain_from_url(url: str) -> str:
+    try:
+        return urlparse(url).hostname or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def show_crawler():
     """Main entry point for the crawler UI."""
     st.title("Web Crawler")
@@ -70,7 +75,6 @@ def show_crawler():
 
 
 def _show_web_crawl():
-    # Input mode toggle
     mode = st.radio("Mode", ["Crawl from URL", "Check URL list"], horizontal=True,
                     key="crawl_mode")
 
@@ -107,6 +111,10 @@ def _show_crawl_from_url():
         engine = CrawlerEngine(url, max_depth=max_depth, max_pages=max_pages,
                                skip_duplicates=skip_dupes)
 
+        # Phase 1: Fetch sitemap
+        sitemap_status = st.empty()
+        sitemap_status.info("Fetching sitemap.xml...")
+
         stats_container = st.empty()
         current_url = st.empty()
         progress_bar = st.progress(0)
@@ -114,6 +122,14 @@ def _show_crawl_from_url():
 
         results: list[CrawlResult] = []
         for result in engine.crawl():
+            # Clear sitemap status after first result
+            if len(results) == 0:
+                sitemap_count = len(engine.sitemap_urls)
+                if sitemap_count > 0:
+                    sitemap_status.success(f"Sitemap loaded: {sitemap_count} URLs found")
+                else:
+                    sitemap_status.warning("No sitemap found — 'In Sitemap' will show N/A")
+
             results.append(result)
             s = engine.stats
             stats_container.markdown(
@@ -137,7 +153,8 @@ def _show_crawl_from_url():
         results = st.session_state["crawl_results"]
         if results:
             df = _results_to_df(results)
-            _show_results_with_export(df, "crawl")
+            domain = _get_domain_from_url(results[0].url)
+            _show_results_with_export(df, "crawl", f"{domain}-crawl-results")
 
 
 def _show_check_url_list():
@@ -180,79 +197,89 @@ def _show_check_url_list():
         results = st.session_state["url_list_results"]
         if results:
             df = _results_to_df(results)
-            _show_results_with_export(df, "url_list")
+            _show_results_with_export(df, "url_list", "url-check-results")
 
 
 def _show_sitemap_check():
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        sitemap_url = st.text_input("Sitemap URL", placeholder="https://example.com/sitemap.xml",
-                                    key="sitemap_url_input")
-    with col2:
-        check_status = st.checkbox("Check HTTP status", value=False,
-                                   key="sitemap_check_status")
+    domain_input = st.text_input("Domain or URL",
+                                 placeholder="https://example.com or example.com",
+                                 key="sitemap_domain_input")
 
     col_start, col_clear = st.columns([1, 5])
     with col_start:
-        run = st.button("Parse Sitemap", type="primary", key="btn_parse_sitemap")
+        run = st.button("Check Sitemap", type="primary", key="btn_check_sitemap")
     with col_clear:
         if st.button("Clear Results", key="btn_clear_sitemap"):
             st.session_state.pop("sitemap_results", None)
             st.rerun()
 
-    if run and sitemap_url:
-        url = _ensure_scheme(sitemap_url.strip())
-        with st.spinner("Fetching sitemap..."):
-            entries = list(fetch_sitemap(url))
+    if run and domain_input:
+        # Extract domain from URL or use as-is
+        raw = domain_input.strip()
+        try:
+            parsed = urlparse(_ensure_scheme(raw))
+            domain = parsed.hostname or raw
+        except Exception:
+            domain = raw
+
+        status_text = st.empty()
+        status_text.info(f"Fetching sitemap.xml for {domain}...")
+
+        # Fetch sitemap entries
+        entries = list(fetch_sitemap_from_domain(domain))
 
         if not entries:
-            st.warning("No URLs found in sitemap. Check the URL is correct.")
+            status_text.error(f"No URLs found in sitemap for {domain}")
             return
 
-        st.success(f"Found {len(entries)} URLs in sitemap.")
+        status_text.success(f"Found {len(entries)} URLs in sitemap. Checking status...")
 
-        if check_status:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            results_container = st.empty()
-            checked: list[SitemapEntry] = []
+        # Always check HTTP status (like the original)
+        stats_container = st.empty()
+        progress_bar = st.progress(0)
+        current_url = st.empty()
+        results_container = st.empty()
+        checked: list[SitemapEntry] = []
 
-            for i, entry in enumerate(check_sitemap_urls(entries)):
-                checked.append(entry)
-                progress_bar.progress((i + 1) / len(entries))
-                status_text.caption(f"Checking {i + 1}/{len(entries)}: {entry.url}")
-                df = _sitemap_to_df(checked)
-                results_container.dataframe(df, use_container_width=True, hide_index=True)
+        for i, entry in enumerate(check_sitemap_urls(entries)):
+            checked.append(entry)
+            progress_bar.progress((i + 1) / len(entries))
+            current_url.caption(f"Checking {i + 1}/{len(entries)}: {entry.url}")
+            stats_container.markdown(
+                f"**Discovered:** {len(entries)} · "
+                f"**Processed:** {len(checked)} · "
+                f"**Queue:** {len(entries) - len(checked)}"
+            )
+            df = _sitemap_to_df(checked)
+            results_container.dataframe(df, use_container_width=True, hide_index=True)
 
-            progress_bar.empty()
-            status_text.empty()
-            st.session_state["sitemap_results"] = checked
-        else:
-            st.session_state["sitemap_results"] = entries
+        progress_bar.empty()
+        current_url.empty()
+        status_text.success(f"Done! Found {len(checked)} URLs in sitemap.")
+        st.session_state["sitemap_results"] = checked
 
     if "sitemap_results" in st.session_state and not run:
         entries = st.session_state["sitemap_results"]
         if entries:
+            domain = _get_domain_from_url(entries[0].url) if entries else "unknown"
             df = _sitemap_to_df(entries)
-            _show_results_with_export(df, "sitemap")
+            _show_results_with_export(df, "sitemap", f"{domain}-sitemap")
 
 
 def _sitemap_to_df(entries: list[SitemapEntry]) -> pd.DataFrame:
     rows = []
     for e in entries:
-        row = {
+        rows.append({
             "URL": e.url,
+            "Status": _status_badge(e.status_code, e.error),
             "Last Modified": e.lastmod or "—",
             "Change Freq": e.changefreq or "—",
             "Priority": e.priority or "—",
-        }
-        if e.status_code is not None or e.error:
-            row["Status"] = _status_badge(e.status_code, e.error)
-        rows.append(row)
+        })
     return pd.DataFrame(rows)
 
 
-def _show_results_with_export(df: pd.DataFrame, key_prefix: str):
+def _show_results_with_export(df: pd.DataFrame, key_prefix: str, filename: str = "results"):
     """Display results table with filter, CSV export and clipboard copy."""
     # Filter
     filter_text = st.text_input("Filter URLs", placeholder="Type to filter...",
@@ -268,12 +295,12 @@ def _show_results_with_export(df: pd.DataFrame, key_prefix: str):
     col_csv, col_copy = st.columns([1, 1])
     csv_data = _df_to_csv(df)
     with col_csv:
-        st.download_button("Download CSV", data=csv_data, file_name="crawler_results.csv",
+        from datetime import date
+        fname = f"{filename}-{date.today().isoformat()}.csv"
+        st.download_button("Download CSV", data=csv_data, file_name=fname,
                            mime="text/csv", key=f"{key_prefix}_csv_dl")
     with col_copy:
-        # Streamlit doesn't have native clipboard, but we can use a text area trick
         if st.button("Copy to clipboard", key=f"{key_prefix}_copy"):
-            # Use TSV for clipboard (easier to paste into sheets)
             tsv = df.to_csv(sep="\t", index=False)
             st.code(tsv, language=None)
-            st.caption("Select all and copy the text above (Ctrl+A, Ctrl+C)")
+            st.caption("Select all and copy (Ctrl+A, Ctrl+C)")

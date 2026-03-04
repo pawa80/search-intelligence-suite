@@ -1,4 +1,4 @@
-"""Sitemap XML parser — fetch and parse sitemaps, including sitemap index files."""
+"""Sitemap XML parser — fetch and parse sitemaps, check status of each URL."""
 
 import time
 import httpx
@@ -46,15 +46,11 @@ def _parse_sitemap_xml(content: bytes) -> tuple[list[SitemapEntry], list[str]]:
     except ET.ParseError:
         return entries, nested
 
-    # Handle namespace — sitemaps use {http://www.sitemaps.org/schemas/sitemap/0.9}
     ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
-
-    # Detect namespace from root tag
     if root.tag.startswith("{"):
         ns = root.tag.split("}")[0].lstrip("{")
 
     def _find(parent, tag):
-        """Find child element with or without namespace."""
         elem = parent.find(f"{{{ns}}}{tag}")
         if elem is None:
             elem = parent.find(tag)
@@ -114,12 +110,19 @@ def fetch_sitemap(sitemap_url: str):
         yield from entries
 
 
+def fetch_sitemap_from_domain(domain: str):
+    """Auto-detect sitemap from domain. Tries /sitemap.xml.
+    Yields SitemapEntry objects."""
+    url = f"https://{domain}/sitemap.xml"
+    yield from fetch_sitemap(url)
+
+
 def check_sitemap_urls(entries: list[SitemapEntry]):
     """Check HTTP status for each sitemap entry. Yields updated entries."""
     for entry in entries:
         try:
-            r = httpx.head(entry.url, headers={"User-Agent": USER_AGENT},
-                           timeout=REQUEST_TIMEOUT, follow_redirects=True)
+            r = httpx.get(entry.url, headers={"User-Agent": USER_AGENT},
+                          timeout=REQUEST_TIMEOUT, follow_redirects=True)
             entry.status_code = r.status_code
         except httpx.TimeoutException:
             entry.error = "Timeout"
