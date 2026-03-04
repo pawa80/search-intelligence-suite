@@ -90,7 +90,7 @@ def _show_crawl_from_url():
         start_url = st.text_input("Starting URL", placeholder="https://example.com",
                                   key="crawl_start_url")
     with col2:
-        max_depth = st.number_input("Max depth", min_value=1, max_value=5, value=2,
+        max_depth = st.number_input("Max depth", min_value=1, max_value=20, value=10,
                                     key="crawl_max_depth")
     with col3:
         max_pages = st.number_input("Max pages", min_value=1, max_value=2000, value=20,
@@ -111,9 +111,9 @@ def _show_crawl_from_url():
         engine = CrawlerEngine(url, max_depth=max_depth, max_pages=max_pages,
                                skip_duplicates=skip_dupes)
 
-        # Phase 1: Fetch sitemap
+        # Background: fetch sitemap for cross-reference lookup (does NOT guide the crawl)
         sitemap_status = st.empty()
-        sitemap_status.info("Fetching sitemap.xml...")
+        sitemap_status.info("Loading sitemap.xml for cross-reference...")
 
         stats_container = st.empty()
         current_url = st.empty()

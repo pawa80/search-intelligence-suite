@@ -170,7 +170,7 @@ def fetch_sitemap_urls(domain: str) -> set[str]:
 
 
 class CrawlerEngine:
-    def __init__(self, start_url: str, max_depth: int = 2, max_pages: int = 20,
+    def __init__(self, start_url: str, max_depth: int = 10, max_pages: int = 20,
                  skip_duplicates: bool = True):
         parsed = urlparse(start_url)
         self.domain = parsed.netloc.lower()
