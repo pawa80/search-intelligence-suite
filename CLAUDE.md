@@ -109,7 +109,7 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Architecture
 - **Location**: `crawler/` package — `crawler_engine.py`, `sitemap_parser.py`, `crawler_ui.py`
 - **Access**: Sidebar tool selector in `app.py` ("Rank Tracker" / "Web Crawler")
-- **No Supabase** — standalone, no database. Phase 2 could persist to `pages` table.
+- **Supabase persistence**: Crawl results UPSERT to `pages` table via raw httpx + JWT (same pattern as `geo_check_results`). Requires project selected.
 - **Dependencies added**: `beautifulsoup4`, `pandas`, `truststore` (OS cert store for Windows dev)
 
 ### Web Crawl Tab (SEMrush-style SEO crawler)
