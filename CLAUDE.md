@@ -40,6 +40,7 @@ Pal + Morten collaboration.
 - `projects` (id, workspace_id, name, domain, created_at) — RLS via workspace membership
 - `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
 - `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
+- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at) — UPSERT on (project_id, url). Written by crawler after crawl completes.
 
 ### RPC Functions
 - `create_workspace_for_user(ws_name text, ws_user_id uuid)` — SECURITY DEFINER, creates workspace + membership atomically
@@ -56,6 +57,7 @@ Pal + Morten collaboration.
 - `workspace_members` SELECT: `user_id = auth.uid()`
 - `geo_check_results` INSERT: `user_owns_project(project_id)` (SECURITY DEFINER)
 - `geo_check_results` SELECT: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `pages` INSERT/SELECT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
 
 ## Python Environment
 - **uv** for package management (installed via `python -m pip install uv`)
