@@ -8,8 +8,43 @@ import io
 import csv
 from urllib.parse import urlparse
 
+from datetime import datetime, timezone
 from crawler.crawler_engine import CrawlerEngine, check_url_list, CrawlResult
 from crawler.sitemap_parser import fetch_sitemap_from_domain, check_sitemap_urls, SitemapEntry
+
+
+def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
+    """Save crawl results to pages table via UPSERT. Returns (saved, failed)."""
+    from app import db_upsert
+
+    project_id = st.session_state.get("crawler_project_id")
+    token = st.session_state.get("access_token")
+    if not project_id or not token:
+        return 0, 0
+
+    now = datetime.now(timezone.utc).isoformat()
+    saved = 0
+    failed = 0
+
+    for r in results:
+        try:
+            db_upsert("pages", token, {
+                "project_id": project_id,
+                "url": r.url,
+                "canonical_url": r.seo.canonical or None,
+                "status_code": r.status_code,
+                "title": r.title or None,
+                "h1": r.seo.h1 if r.seo.h1 != "Missing" else None,
+                "meta_description": r.seo.meta_desc or None,
+                "depth": r.depth,
+                "in_sitemap": r.in_sitemap == "Yes",
+                "last_crawled_at": now,
+            }, on_conflict="project_id,url")
+            saved += 1
+        except Exception:
+            failed += 1
+
+    return saved, failed
 
 
 def _status_badge(code: int | None, error: str = "") -> str:
@@ -163,6 +198,15 @@ def _show_crawl_from_url():
         current_url.empty()
         st.session_state["crawl_results"] = results
         st.success(f"Done! Crawled {len(results)} pages.")
+
+        # Save to Supabase if project is selected
+        if results and st.session_state.get("crawler_project_id"):
+            saved, failed = _save_crawl_results(results)
+            if failed == 0:
+                st.success(f"Saved {saved} pages to project.")
+            else:
+                st.warning(f"Saved {saved} pages, {failed} failed.")
+
         # Show export immediately
         if results:
             df = _results_to_df(results)
