@@ -11,7 +11,7 @@ import streamlit as st
 
 
 PERPLEXITY_BASE = "https://api.perplexity.ai"
-MODEL = "llama-3.1-sonar-small-128k-online"
+MODEL = "sonar"
 
 SYSTEM_PROMPT = """You are an SEO and AEO (Answer Engine Optimisation) analyst.
 You receive crawled page data and return a structured JSON assessment.
@@ -87,7 +87,8 @@ def analyse_page(page: dict[str, Any], api_key: str) -> dict[str, Any] | None:
         clean = raw.strip().strip("```json").strip("```").strip()
         return json.loads(clean)
     except Exception as e:
-        print(f"AI analysis failed for {page.get('url')}: {e}")
+        import streamlit as st
+        st.warning(f"AI analysis failed for {page.get('url', '?')}: {e}")
         return None
 
 
