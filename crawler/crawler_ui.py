@@ -555,6 +555,68 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
         # Build page URL lookup
         page_url_lookup = {p["id"]: p["url"] for p in pages}
 
+        # --- Build CSV data for exports ---
+        _summary_rows = []
+        _detail_rows = []
+        for page_id, a in analyses.items():
+            _url = page_url_lookup.get(page_id, "Unknown")
+            _summary_rows.append({
+                "URL": _url,
+                "SEO Score": a.get("seo_score", ""),
+                "AEO Readiness Score": a.get("aeo_readiness_score", ""),
+                "Content Quality Score": a.get("content_quality_score", ""),
+                "Priority Action": a.get("priority_action", ""),
+                "Action Plan": a.get("action_plan", ""),
+                "Analysed": (a.get("analysed_at") or "")[:10],
+            })
+            issues = a.get("issues", [])
+            if isinstance(issues, str):
+                try:
+                    issues = json.loads(issues)
+                except (json.JSONDecodeError, TypeError):
+                    issues = []
+            for issue in (issues or []):
+                _detail_rows.append({
+                    "URL": _url,
+                    "SEO Score": a.get("seo_score", ""),
+                    "AEO Score": a.get("aeo_readiness_score", ""),
+                    "Content Score": a.get("content_quality_score", ""),
+                    "Issue Type": issue.get("type", ""),
+                    "Severity": issue.get("severity", ""),
+                    "Description": issue.get("description", ""),
+                })
+
+        _summary_rows.sort(key=lambda x: x.get("SEO Score") or 999)
+        _detail_rows.sort(key=lambda x: (x.get("SEO Score") or 999, x.get("Severity", "")))
+
+        def _to_csv(rows: list[dict]) -> str:
+            if not rows:
+                return ""
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=rows[0].keys())
+            w.writeheader()
+            w.writerows(rows)
+            return buf.getvalue()
+
+        _domain_slug = project_ctx.get("domain", "site").replace("https://", "").replace("http://", "").rstrip("/").replace("/", "_")
+        _date_str = date.today().isoformat()
+
+        dl1, dl2, _ = st.columns([1, 1, 3])
+        dl1.download_button(
+            "Export Summary CSV",
+            data=_to_csv(_summary_rows),
+            file_name=f"ai-analysis-summary-{_domain_slug}-{_date_str}.csv",
+            mime="text/csv",
+            key="btn_ai_summary_csv",
+        )
+        dl2.download_button(
+            "Export Issues CSV",
+            data=_to_csv(_detail_rows) if _detail_rows else "No issues found",
+            file_name=f"ai-analysis-issues-{_domain_slug}-{_date_str}.csv",
+            mime="text/csv",
+            key="btn_ai_issues_csv",
+        )
+
         # Results table
         st.subheader("Analysis Results")
         table_data = []
