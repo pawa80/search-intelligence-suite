@@ -368,24 +368,53 @@ def _show_match_status(project_ctx: dict[str, Any], token: str) -> None:
             return
 
         lookup = build_pages_lookup(pages)
-        updated = 0
+        gsc_updated = 0
+        ga_updated = 0
+        ga_newly_matched = 0
+        gsc_newly_matched = 0
+
+        status = st.empty()
+        status.info("Re-matching GSC URLs...")
 
         # Re-match GSC
         for row in gsc_rows:
             page_id = match_url_to_page(row["url"], lookup, domain)
             if page_id != row.get("page_id"):
                 _update_page_id("gsc_data", token, row["id"], page_id)
-                updated += 1
+                gsc_updated += 1
+                if page_id:
+                    gsc_newly_matched += 1
+
+        status.info("Re-matching GA4 page paths...")
 
         # Re-match GA4
         for row in ga_rows:
             page_id = match_url_to_page(row["page_path"], lookup, domain)
             if page_id != row.get("page_id"):
                 _update_page_id("ga_data", token, row["id"], page_id)
-                updated += 1
+                ga_updated += 1
+                if page_id:
+                    ga_newly_matched += 1
 
-        st.success(f"Re-matching complete. {updated} rows updated.")
-        st.rerun()
+        status.empty()
+
+        # Show results without rerun so user can see them
+        st.success(
+            f"Re-matching complete. "
+            f"GSC: {gsc_newly_matched} newly matched ({gsc_updated} changed). "
+            f"GA4: {ga_newly_matched} newly matched ({ga_updated} changed). "
+            f"Domain used: `{domain}`"
+        )
+
+        # Debug: show sample paths that didn't match
+        unmatched_ga = [r["page_path"] for r in ga_rows
+                        if not match_url_to_page(r["page_path"], lookup, domain)][:5]
+        if unmatched_ga:
+            sample_pages = list(lookup.keys())[:3]
+            st.info(
+                f"Sample unmatched GA4 paths: {unmatched_ga}\n\n"
+                f"Sample crawled URLs in lookup: {sample_pages}"
+            )
 
 
 def _load_pages(token: str, project_id: str) -> list[dict]:
