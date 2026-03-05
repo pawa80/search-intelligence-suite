@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+import streamlit as st
 
 
 PERPLEXITY_BASE = "https://api.perplexity.ai"
@@ -112,18 +113,32 @@ def save_analysis(
         "analysed_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
+        headers = {
+            "apikey": anon_key,
+            "Authorization": f"Bearer {jwt}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation,resolution=merge-duplicates",
+        }
+        upsert_params = {"on_conflict": "page_id"}
         r = httpx.post(
             f"{supabase_url}/rest/v1/crawl_ai_analysis",
-            headers={
-                "apikey": anon_key,
-                "Authorization": f"Bearer {jwt}",
-                "Content-Type": "application/json",
-                "Prefer": "return=representation,resolution=merge-duplicates",
-            },
-            json=body,
-            params={"on_conflict": "page_id"},
-            timeout=10.0,
+            headers=headers, json=body, params=upsert_params, timeout=10.0,
         )
+        if r.status_code == 401:
+            try:
+                from supabase import create_client
+                sb = create_client(supabase_url, anon_key)
+                resp = sb.auth.refresh_session()
+                if resp and resp.session:
+                    new_token = resp.session.access_token
+                    st.session_state.access_token = new_token
+                    headers["Authorization"] = f"Bearer {new_token}"
+                    r = httpx.post(
+                        f"{supabase_url}/rest/v1/crawl_ai_analysis",
+                        headers=headers, json=body, params=upsert_params, timeout=10.0,
+                    )
+            except Exception:
+                pass
         return r.status_code < 400
     except Exception:
         return False

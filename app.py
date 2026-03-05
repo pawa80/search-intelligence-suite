@@ -45,8 +45,34 @@ def init_session_state():
             st.session_state[key] = val
 
 
+def _refresh_jwt():
+    """Refresh the Supabase JWT using the current session. Returns new token or None."""
+    try:
+        response = supabase.auth.refresh_session()
+        if response and response.session:
+            new_token = response.session.access_token
+            st.session_state.access_token = new_token
+            return new_token
+    except Exception:
+        pass
+    return None
+
+
+def _make_rest_call(method, url, headers, params=None, body=None):
+    """Execute a single REST call."""
+    if method == "GET":
+        return httpx.get(url, headers=headers, params=params, timeout=30.0)
+    elif method == "POST":
+        return httpx.post(url, headers=headers, json=body, params=params, timeout=30.0)
+    elif method == "DELETE":
+        return httpx.delete(url, headers=headers, params=params, timeout=30.0)
+    else:
+        raise ValueError(f"Unsupported method: {method}")
+
+
 def db_request(method, table, access_token, params=None, body=None):
-    """Direct REST call to Supabase PostgREST with authenticated JWT."""
+    """Direct REST call to Supabase PostgREST with authenticated JWT.
+    Auto-refreshes token on 401 and retries once."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = {
         "apikey": SUPABASE_ANON_KEY,
@@ -54,14 +80,13 @@ def db_request(method, table, access_token, params=None, body=None):
         "Content-Type": "application/json",
         "Prefer": "return=representation",
     }
-    if method == "GET":
-        r = httpx.get(url, headers=headers, params=params)
-    elif method == "POST":
-        r = httpx.post(url, headers=headers, json=body)
-    elif method == "DELETE":
-        r = httpx.delete(url, headers=headers, params=params)
-    else:
-        raise ValueError(f"Unsupported method: {method}")
+    r = _make_rest_call(method, url, headers, params=params, body=body)
+
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = _make_rest_call(method, url, headers, params=params, body=body)
 
     if r.status_code >= 400:
         raise Exception(f"DB {method} {table}: {r.status_code} {r.text}")
@@ -71,7 +96,8 @@ def db_request(method, table, access_token, params=None, body=None):
 
 
 def db_upsert(table, access_token, body, on_conflict):
-    """UPSERT via PostgREST — insert or update on conflict."""
+    """UPSERT via PostgREST — insert or update on conflict.
+    Auto-refreshes token on 401 and retries once."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = {
         "apikey": SUPABASE_ANON_KEY,
@@ -79,22 +105,37 @@ def db_upsert(table, access_token, body, on_conflict):
         "Content-Type": "application/json",
         "Prefer": "return=representation,resolution=merge-duplicates",
     }
-    r = httpx.post(url, headers=headers, json=body,
-        params={"on_conflict": on_conflict})
+    upsert_params = {"on_conflict": on_conflict}
+    r = httpx.post(url, headers=headers, json=body, params=upsert_params, timeout=30.0)
+
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.post(url, headers=headers, json=body, params=upsert_params, timeout=30.0)
+
     if r.status_code >= 400:
         raise Exception(f"DB UPSERT {table}: {r.status_code} {r.text}")
     return r.json()
 
 
 def rpc_request(fn_name, access_token, params):
-    """Call a Supabase RPC function."""
+    """Call a Supabase RPC function.
+    Auto-refreshes token on 401 and retries once."""
     url = f"{SUPABASE_URL}/rest/v1/rpc/{fn_name}"
     headers = {
         "apikey": SUPABASE_ANON_KEY,
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
-    r = httpx.post(url, headers=headers, json=params)
+    r = httpx.post(url, headers=headers, json=params, timeout=30.0)
+
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.post(url, headers=headers, json=params, timeout=30.0)
+
     if r.status_code >= 400:
         raise Exception(f"RPC {fn_name}: {r.status_code} {r.text}")
     return r.json()

@@ -19,6 +19,7 @@ Pal + Morten collaboration.
 - **Raw httpx** used for ALL table operations — sends JWT directly in Authorization header
 - **SECURITY DEFINER RPC** for workspace creation (`create_workspace_for_user`) — bypasses RLS
 - **Reason**: supabase-py's PostgREST client doesn't reliably propagate the JWT after auth. Raw REST calls are deterministic.
+- **JWT auto-refresh on 401**: All DB functions (`db_request`, `db_upsert`, `rpc_request`, plus module-local helpers in `aeo/aeo_ui.py`, `aeo/context_builder.py`, `crawler/ai_analyser.py`) catch 401 responses, call `supabase.auth.refresh_session()`, update `st.session_state.access_token`, and retry once. Prevents failures after long-running operations (AI generation, batch analysis) where the 1-hour JWT may expire mid-session.
 
 ### RLS Lessons (Critical)
 - `user_in_workspace()` function was SECURITY INVOKER → caused infinite recursion when called from RLS policies on tables it queries

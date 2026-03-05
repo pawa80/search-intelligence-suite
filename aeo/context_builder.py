@@ -4,6 +4,36 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+import streamlit as st
+
+
+def _refresh_jwt(supabase_url: str, anon_key: str) -> str | None:
+    """Refresh JWT via supabase client. Returns new token or None."""
+    try:
+        from supabase import create_client
+        sb = create_client(supabase_url, anon_key)
+        response = sb.auth.refresh_session()
+        if response and response.session:
+            new_token = response.session.access_token
+            st.session_state.access_token = new_token
+            return new_token
+    except Exception:
+        pass
+    return None
+
+
+def _get_with_retry(url: str, headers: dict, params: dict,
+                    supabase_url: str, anon_key: str) -> list[dict]:
+    """GET with 401 auto-refresh retry."""
+    r = httpx.get(url, headers=headers, params=params, timeout=10.0)
+    if r.status_code == 401:
+        new_token = _refresh_jwt(supabase_url, anon_key)
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.get(url, headers=headers, params=params, timeout=10.0)
+    if r.status_code < 400:
+        return r.json()
+    return []
 
 
 def build_page_context(
@@ -32,59 +62,47 @@ def build_page_context(
 
     # Fetch crawl AI analysis
     try:
-        r = httpx.get(
+        rows = _get_with_retry(
             f"{supabase_url}/rest/v1/crawl_ai_analysis",
-            headers=headers,
-            params={
-                "select": "seo_score,aeo_readiness_score,content_quality_score,priority_action,issues",
-                "page_id": f"eq.{page_id}",
-            },
-            timeout=10.0,
+            headers.copy(),
+            {"select": "seo_score,aeo_readiness_score,content_quality_score,priority_action,issues",
+             "page_id": f"eq.{page_id}"},
+            supabase_url, anon_key,
         )
-        if r.status_code < 400:
-            rows = r.json()
-            if rows:
-                context["crawl_analysis"] = rows[0]
+        if rows:
+            context["crawl_analysis"] = rows[0]
     except Exception:
         pass
 
     # Fetch GSC data (most recent date range)
     try:
-        r = httpx.get(
+        rows = _get_with_retry(
             f"{supabase_url}/rest/v1/gsc_data",
-            headers=headers,
-            params={
-                "select": "clicks,impressions,ctr,position",
-                "page_id": f"eq.{page_id}",
-                "order": "date_range_end.desc",
-                "limit": "1",
-            },
-            timeout=10.0,
+            headers.copy(),
+            {"select": "clicks,impressions,ctr,position",
+             "page_id": f"eq.{page_id}",
+             "order": "date_range_end.desc",
+             "limit": "1"},
+            supabase_url, anon_key,
         )
-        if r.status_code < 400:
-            rows = r.json()
-            if rows:
-                context["gsc"] = rows[0]
+        if rows:
+            context["gsc"] = rows[0]
     except Exception:
         pass
 
     # Fetch GA data (most recent date range)
     try:
-        r = httpx.get(
+        rows = _get_with_retry(
             f"{supabase_url}/rest/v1/ga_data",
-            headers=headers,
-            params={
-                "select": "sessions,engagement_rate,avg_engagement_time",
-                "page_id": f"eq.{page_id}",
-                "order": "date_range_end.desc",
-                "limit": "1",
-            },
-            timeout=10.0,
+            headers.copy(),
+            {"select": "sessions,engagement_rate,avg_engagement_time",
+             "page_id": f"eq.{page_id}",
+             "order": "date_range_end.desc",
+             "limit": "1"},
+            supabase_url, anon_key,
         )
-        if r.status_code < 400:
-            rows = r.json()
-            if rows:
-                context["ga"] = rows[0]
+        if rows:
+            context["ga"] = rows[0]
     except Exception:
         pass
 

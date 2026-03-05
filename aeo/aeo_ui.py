@@ -32,21 +32,41 @@ def _get_secret(key: str) -> str:
         return os.getenv(key, "")
 
 
+def _refresh_jwt() -> str | None:
+    """Refresh JWT via supabase client. Returns new token or None."""
+    try:
+        from supabase import create_client
+        sb = create_client(_get_secret("SUPABASE_URL"), _get_secret("SUPABASE_ANON_KEY"))
+        response = sb.auth.refresh_session()
+        if response and response.session:
+            new_token = response.session.access_token
+            st.session_state.access_token = new_token
+            return new_token
+    except Exception:
+        pass
+    return None
+
+
 def _db_get(token: str, table: str, params: dict) -> list[dict]:
-    """Direct GET to Supabase REST API."""
+    """Direct GET to Supabase REST API. Auto-refreshes token on 401."""
     url = f"{_get_secret('SUPABASE_URL')}/rest/v1/{table}"
     headers = {
         "apikey": _get_secret("SUPABASE_ANON_KEY"),
         "Authorization": f"Bearer {token}",
     }
     r = httpx.get(url, headers=headers, params=params, timeout=10.0)
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.get(url, headers=headers, params=params, timeout=10.0)
     if r.status_code >= 400:
         return []
     return r.json()
 
 
 def _db_post(token: str, table: str, body: dict) -> bool:
-    """Direct POST to Supabase REST API."""
+    """Direct POST to Supabase REST API. Auto-refreshes token on 401."""
     url = f"{_get_secret('SUPABASE_URL')}/rest/v1/{table}"
     headers = {
         "apikey": _get_secret("SUPABASE_ANON_KEY"),
@@ -55,6 +75,11 @@ def _db_post(token: str, table: str, body: dict) -> bool:
         "Prefer": "return=representation",
     }
     r = httpx.post(url, headers=headers, json=body, timeout=10.0)
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.post(url, headers=headers, json=body, timeout=10.0)
     return r.status_code < 400
 
 
