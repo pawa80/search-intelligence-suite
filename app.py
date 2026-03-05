@@ -14,6 +14,7 @@ from crawler.crawler_ui import show_crawler
 from google_data.datasources_ui import show_datasources, handle_oauth_callback_if_present
 from aeo.aeo_ui import show_aeo_agent
 from matrise.matrise_ui import show_matrise
+from arbeidspakker.arbeidspakker_ui import show_arbeidspakker_library
 
 load_dotenv()
 
@@ -457,7 +458,7 @@ def show_dashboard():
         st.caption(user.email)
 
         # Tool selector — _tool_override can set the value BEFORE the widget renders
-        _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"]
+        _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise", "Arbeidspakker"]
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
         tool = st.selectbox("Tool", _tools, key="active_tool")
@@ -554,6 +555,20 @@ def show_dashboard():
             if p:
                 project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_matrise(
+            project_ctx=project_ctx,
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
+        return
+
+    if st.session_state.get("active_tool") == "Arbeidspakker":
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_arbeidspakker_library(
             project_ctx=project_ctx,
             token=token,
             workspace_id=workspace["id"],
