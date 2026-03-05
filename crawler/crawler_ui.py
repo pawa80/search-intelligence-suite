@@ -152,7 +152,7 @@ def _show_crawl_from_url():
         max_depth = st.number_input("Max depth", min_value=1, max_value=20, value=10,
                                     key="crawl_max_depth")
     with col3:
-        max_pages = st.number_input("Max pages", min_value=1, max_value=500, value=20,
+        max_pages = st.number_input("Max pages", min_value=1, max_value=2000, value=20,
                                     key="crawl_max_pages")
 
     skip_dupes = st.checkbox("Skip duplicates", value=True, key="crawl_skip_dupes")
