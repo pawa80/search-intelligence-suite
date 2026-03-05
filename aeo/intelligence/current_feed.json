@@ -1,0 +1,85 @@
+{
+  "feed_version": "2026-W08",
+  "last_updated": "2026-02-14",
+  "weeks_of_data": 30,
+  "trend_alerts": [
+    {
+      "insight": "YouTube structured data now beats Reddit for AI citations — AI engines increasingly prefer video-backed structured content over forum-style UGC",
+      "source": "Week 5 Private Briefing",
+      "implication": "Prioritise video schema and structured data over forum-style content. Pages with embedded video + VideoObject schema see higher citation rates.",
+      "confidence": "high"
+    },
+    {
+      "insight": "Perplexity's Deep Research mode processes 40+ sources per query — surface-level content gets filtered out early",
+      "source": "Week 6 Private Briefing",
+      "implication": "Content must demonstrate depth and original analysis to survive multi-source synthesis. Thin 'top 10' listicles are increasingly ignored.",
+      "confidence": "high"
+    },
+    {
+      "insight": "OpenAI's operator agents now browse and interact with websites autonomously — agentic SEO is emerging as a new category",
+      "source": "Week 7 Private Briefing",
+      "implication": "Pages need to be parseable by autonomous agents, not just search crawlers. Clean semantic HTML, clear CTAs, and machine-readable pricing/specs become critical.",
+      "confidence": "medium"
+    },
+    {
+      "insight": "Google's AI Overviews now appear in 47% of informational queries in the US — traditional blue links declining for 'what is' and 'how to' queries",
+      "source": "Week 4 Private Briefing",
+      "implication": "Being in position 1-3 organically no longer guarantees visibility. Content must be structured for AI extraction (answer-first, semantic triples) to maintain traffic.",
+      "confidence": "high"
+    }
+  ],
+  "evolving_patterns": [
+    {
+      "pattern": "AI engines increasingly favour infrastructure-level content over surface-level tips",
+      "first_seen": "Week 3 2026",
+      "latest_signal": "Week 6 2026 — Google committed £185B to AI infrastructure, Meta £600B. AI search investment is accelerating, not plateauing.",
+      "recommendation_impact": "Recommend deeper, architectural content that explains WHY and HOW systems work, not just surface-level 'tips and tricks' listicles."
+    },
+    {
+      "pattern": "Entity-first content structure is replacing keyword-first optimisation",
+      "first_seen": "Week 2 2026",
+      "latest_signal": "Week 7 2026 — Pages that define entities clearly (what it is, how it relates to other concepts) get cited 3x more than keyword-stuffed pages.",
+      "recommendation_impact": "Recommend entity definitions early in content. Use semantic triples (Subject-Predicate-Object) rather than keyword repetition."
+    },
+    {
+      "pattern": "AI engines reward pages that acknowledge limitations and nuance over absolutist claims",
+      "first_seen": "Week 4 2026",
+      "latest_signal": "Week 8 2026 — Perplexity's citation algorithm appears to favour sources that present balanced perspectives with caveats over sources making absolute claims.",
+      "recommendation_impact": "Recommend including 'when this doesn't apply' or 'limitations' sections. Nuanced content signals expertise."
+    }
+  ],
+  "counter_signals": [
+    {
+      "conventional_wisdom": "Add FAQ schema to every page",
+      "actual_signal": "FAQ schema is now table stakes — every competitor has it. AI engines now differentiate on entity coverage, semantic clarity, and answer positioning. FAQ schema alone adds zero competitive advantage.",
+      "action": "Stop recommending FAQ schema as a primary fix. Instead, recommend entity-rich content structure with clear semantic triples in the first 100 words."
+    },
+    {
+      "conventional_wisdom": "Longer content ranks better",
+      "actual_signal": "AI engines have a ~2000 word 'grounding budget' per source. They extract the most relevant 200-500 words. Padding content with fluff actively hurts because it dilutes the signal-to-noise ratio for AI extraction.",
+      "action": "Recommend concise, dense content over lengthy pieces. Every paragraph should earn its place. If a section doesn't directly answer a user intent, consider removing it."
+    },
+    {
+      "conventional_wisdom": "Rewrite content in a neutral, professional tone for SEO",
+      "actual_signal": "AI engines cite distinctive voices MORE than generic corporate copy. Pages with unique perspectives, original frameworks, and personality get preferential citation because they provide differentiated value that can't be synthesised from multiple generic sources.",
+      "action": "NEVER flatten distinctive voice into corporate speak. Preserve personality, original terminology, and unique frameworks. The goal is AEO-optimised structure WITH the author's authentic voice."
+    }
+  ],
+  "citation_patterns": [
+    {
+      "observation": "Pages cited by Perplexity tend to have direct answers in the first 100 words with supporting data in the next 200 words",
+      "source": "GEO Tracker data across 745 records (WTA domain)",
+      "quantified": "~80% correlation between answer-first structure and citation inclusion in Perplexity's 6-source authority set"
+    },
+    {
+      "observation": "Pages with clear entity definitions (Subject IS Object) in H2 subheadings get cited more consistently than pages using question-format headings",
+      "source": "Cross-referencing GEO Tracker citation data with page structure analysis",
+      "quantified": "Definitional H2s (e.g. 'WTA Rankings System') outperform question H2s (e.g. 'How Does the WTA Ranking System Work?') for AI citation by approximately 2:1"
+    },
+    {
+      "observation": "Pages that include specific numbers, dates, and named entities in their opening paragraph are cited at higher rates",
+      "source": "Pattern analysis across 30 weeks of newsletter coverage + GEO Tracker baseline data",
+      "quantified": "Specificity markers (numbers, dates, proper nouns) in paragraph 1 correlate with ~65% higher citation probability vs vague openings"
+    }
+  ]
+}

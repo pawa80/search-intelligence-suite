@@ -41,6 +41,11 @@ Pal + Morten collaboration.
 - `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
 - `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
 - `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at) — UPSERT on (project_id, url). Written by crawler after crawl completes.
+- `google_connections` (id, workspace_id, user_id, google_refresh_token, google_token_expiry, gsc_property, ga4_property_id, ga4_property_name, connected_at) — UNIQUE on (workspace_id, user_id). RLS via `user_id = auth.uid()`.
+- `gsc_data` (id, project_id, url, clicks, impressions, ctr, position, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, url, date_range_start). RLS via `user_owns_project()`.
+- `ga_data` (id, project_id, page_path, sessions, engaged_sessions, engagement_rate, avg_engagement_time, bounce_rate, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, page_path, date_range_start). RLS via `user_owns_project()`.
+- `crawl_ai_analysis` (id, page_id FK→pages, project_id FK→projects, seo_score 0-100, aeo_readiness_score 0-100, content_quality_score 0-100, issues JSONB, priority_action, action_plan, ai_model, analysed_at, created_at) — UNIQUE on (page_id). RLS via `user_owns_project()`.
+- `arbeidspakker` (id, page_id FK→pages, project_id FK→projects, url, intent, arbeidspakke_markdown, context_snapshot JSONB, generated_at) — RLS via `user_owns_project()`.
 
 ### RPC Functions
 - `create_workspace_for_user(ws_name text, ws_user_id uuid)` — SECURITY DEFINER, creates workspace + membership atomically
@@ -58,6 +63,11 @@ Pal + Morten collaboration.
 - `geo_check_results` INSERT: `user_owns_project(project_id)` (SECURITY DEFINER)
 - `geo_check_results` SELECT: `user_owns_project(project_id)` (SECURITY DEFINER)
 - `pages` INSERT/SELECT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `google_connections` SELECT/INSERT/UPDATE/DELETE: `user_id = auth.uid()` (direct)
+- `gsc_data` SELECT/INSERT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `ga_data` SELECT/INSERT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `crawl_ai_analysis` ALL: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `arbeidspakker` ALL: `user_owns_project(project_id)` (SECURITY DEFINER)
 
 ## Python Environment
 - **uv** for package management (installed via `python -m pip install uv`)
@@ -77,8 +87,13 @@ Pal + Morten collaboration.
 - **Section 4**: Citation engine — Perplexity API integration, batch check with progress bar, PostgREST UPSERT, results display with citation rate. **TESTED AND WORKING** — 142/149 queries checked (7 failed, likely API timeouts). Results persist and display correctly.
 - **Section 5**: Dashboard visualisations — top metrics (citation rate, last check, avg position via `st.metric`), category breakdown table (sorted by rate), authority set analysis (top 15 source domains from raw_sources), uncited queries list, trend chart (`st.line_chart` when multiple check dates exist). Query management moved to expander. Zero new dependencies — uses stdlib Counter, urlparse, and built-in Streamlit charts.
 - **Web Crawler**: SEMrush-style SEO crawler + sitemap checker. Standalone module (`crawler/`), accessible via sidebar tool selector. See Crawler section below.
+- **Data Sources (M2)**: GSC + GA4 data import with URL matching. Module (`google_data/`), accessible via sidebar tool selector. See Data Sources section below.
+- **AI Analysis (M3)**: Per-page AI assessment (SEO, AEO, content quality). Tab inside Web Crawler tool. See AI Analysis section below.
+- **AEO Agent (M4)**: Integrated AEO audit with matrix context from suite data. Sidebar tool. See AEO Agent section below.
 
 ## Next Up
+- **Matrise**: Prioritisation view — ranks pages by score, shows where to focus effort
+- **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user)
 - **Section 6**: Data import (historical GEO Tracker data migration)
 - **Section 7**: Mobile optimisation
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
@@ -139,8 +154,165 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Safety Tag
 - `v1.0-pre-crawler` on commit `001680a` — state before crawler was added
 
+## Data Sources Module (M2)
+
+### Architecture
+- **Location**: `google_data/` package — `oauth.py`, `gsc_client.py`, `ga4_client.py`, `url_matcher.py`, `datasources_ui.py`
+- **Access**: Sidebar tool selector in `app.py` ("Rank Tracker" / "Web Crawler" / "Data Sources")
+- **Google OAuth**: Raw httpx (no PKCE) — `google_auth_oauthlib.Flow` caused PKCE code_verifier issues with Streamlit's redirect lifecycle
+- **Dependencies added**: `google-auth`, `google-auth-oauthlib`, `google-api-python-client`, `google-analytics-data`
+
+### OAuth Flow
+1. User clicks "Connect Google Account" → raw Google consent URL (no PKCE)
+2. Google redirects back with `?code=&state=` → `handle_oauth_callback_if_present()` exchanges code via raw httpx POST
+3. Refresh token saved to `google_connections` table → used for all subsequent API calls
+4. CSRF: HMAC-signed state param encoding workspace_id + nonce
+5. `prompt=consent` guarantees refresh token on every connect
+
+### GSC Client
+- `list_gsc_properties()` — `searchconsole.sites.list()` via `google-api-python-client`
+- `fetch_gsc_data()` — `searchanalytics.query`, dimensions=["page"], rowLimit=5000
+
+### GA4 Client
+- `list_ga4_properties()` — tries gRPC (`AnalyticsAdminServiceClient`), falls back to REST
+- `fetch_ga4_data()` — tries gRPC (`BetaAnalyticsDataClient`), falls back to REST
+- Fallback needed because gRPC can fail on Streamlit Cloud
+
+### URL Matcher
+- `normalise_url()` — same logic as `crawler_engine.normalise_url()` (https-force, strip trailing slash, lowercase netloc)
+- `build_pages_lookup()` — dict of normalised URL → page_id from `pages` table
+- `match_url_to_page()` — exact match after normalisation; GA4 paths prepend project domain
+- On import, `page_id` is set on each row. "Re-run URL Matching" button available in Match Status tab.
+
+### Google Cloud Setup
+- Project in Google Cloud Console with Search Console API, Analytics Data API, Analytics Admin API enabled
+- OAuth consent screen: External, Testing mode — test users must be manually added
+- Secrets: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- Redirect URIs: `http://localhost:8501` (local), Streamlit Cloud URL (prod)
+- `.env` format: no quotes, no spaces around `=`, single `GOOGLE_REDIRECT_URI` (local vs prod)
+
+### Migrations
+- `migrations/001_google_connections.sql`, `002_gsc_data.sql`, `003_ga_data.sql`
+- All run and verified in Supabase SQL editor
+
+### Tested
+- OAuth round-trip: consent → redirect → token exchange → saved to Supabase ✓
+- GSC property listing ✓ (Pal's Norwegian site appeared)
+- GA4 property listing ✓
+- GSC/GA4 import: no data returned (Pal's sites have no traffic) — awaiting Morten test
+
+### Gotchas
+- `google_auth_oauthlib.Flow` adds PKCE automatically; code_verifier lost on Streamlit redirect → use raw httpx instead
+- Google `expires_in` is seconds (e.g. 3599), not a timestamp — must convert before saving to TIMESTAMPTZ column
+- `.env` quotes around values are included literally by `python-dotenv` — don't use quotes
+- Duplicate `GOOGLE_REDIRECT_URI` in `.env`: last one wins but can cause confusion
+
+## AI Analysis Module (M3)
+
+### Architecture
+- **Location**: `crawler/ai_analyser.py` (engine) + "AI Analysis" tab in `crawler/crawler_ui.py`
+- **Access**: Web Crawler tool → AI Analysis tab
+- **Model**: Perplexity API (`llama-3.1-sonar-small-128k-online`) via raw httpx
+- **No new dependencies** — uses existing httpx + PERPLEXITY_API_KEY
+
+### What It Does
+- Reads crawled page data from `pages` table (title, H1, H2, meta desc, word count, status code, canonical, sitemap, JSON-LD, depth)
+- Sends each page to Perplexity with structured prompt → returns JSON with 3 scores + issues + action plan
+- Scores: `seo_score` (technical SEO), `aeo_readiness_score` (answer engine readiness), `content_quality_score` (content signals)
+- Issues: JSONB array of `{type, severity (high/medium/low), description}`
+- UPSERT to `crawl_ai_analysis` on `page_id` conflict
+
+### UI
+- Stats: total crawled pages, already analysed, not yet analysed
+- Two buttons: "Run AI Analysis on Unanalysed Pages" (only missing) / "Re-analyse All Pages" (upserts all)
+- Progress bar with per-page status during batch
+- Summary metrics: avg SEO/AEO/content scores, pages needing attention (any score < 50)
+- Results table: sorted worst-first, colour-coded badges (🔴 < 50, 🟡 50-74, 🟢 75+)
+- Expandable per-page detail: scores, priority action, action plan, full issues list with severity icons
+
+### Migration
+- `migrations/004_crawl_ai_analysis.sql` — run in Supabase SQL editor
+
+### What M3 Does NOT Do
+- No Matrise (prioritisation view) — separate module
+- No per-issue fix recommendations — that's M4
+- No auto-trigger on crawl complete
+- No competitor comparison
+
+## AEO Agent Module (M4)
+
+### Architecture
+- **Location**: `aeo/` package — `analyzer.py`, `recommender.py`, `intelligence_feed.py`, `context_builder.py`, `aeo_ui.py`
+- **Access**: Sidebar tool selector in `app.py` ("AEO Agent")
+- **Models**: OpenAI GPT-4o-mini (recommendations), page content extraction via BeautifulSoup
+- **Dependencies**: `openai`, `lxml` (with `html.parser` fallback)
+- **Origin**: Adapted from standalone AEO Audit Agent (PRCS008) into suite context
+
+### What It Does
+- Selects a crawled page (dropdown from `pages` table) or manual URL
+- Shows page intelligence panel: crawl AI scores (SEO/AEO/content), GSC data (clicks/impressions/position/CTR), GA4 data (sessions/engagement)
+- User sets page intent (what the page should achieve)
+- Generates "arbeidspakke" (work package) — AI audit report with:
+  - Summary, critical issues, prioritised action plan with before/after text, quick wins
+  - Intelligence evaluation checklist (trend alerts, counter-signals, citation patterns)
+  - Each recommendation cites its intelligence source
+- Saves arbeidspakke to `arbeidspakker` table in Supabase
+- Previous arbeidspakker viewable in expandable history
+
+### Matrix Context (`context_builder.py`)
+- `build_page_context()` — fetches `crawl_ai_analysis`, `gsc_data`, `ga_data` for a page via raw httpx
+- `build_context_block()` — formats into prompt-ready markdown injected before page content in GPT prompt
+- Graceful degradation: works with partial data (no GSC = "No GSC data available")
+
+### sys.path Poisoning Fix
+- `aeo/` contains `app.py` (from standalone agent) — adding `aeo/` to sys.path causes ALL `from app import` to resolve to `aeo/app.py` instead of root `app.py`
+- **Fix**: `aeo_ui.py` temporarily adds `aeo/` to sys.path for imports, then immediately removes it
+- `aeo_ui.py` uses its own `_db_get()` / `_db_post()` helpers (raw httpx) to avoid `from app import` entirely
+
+### Migration
+- `migrations/005_aeo_scores_and_arbeidspakker.sql` — `arbeidspakker` table + RLS policies
+
+### Tables
+- `arbeidspakker` (id, page_id FK→pages, project_id FK→projects, url, intent, arbeidspakke_markdown, context_snapshot JSONB, generated_at) — RLS via `user_owns_project()`
+
 ## Rolling Handover
-Last session: Mar 4 2026 (crawler build)
+Last session: Mar 5 2026 (M2 + M3 + M4 build)
+
+### Mar 5 2026 — M4: AEO Agent Integration
+- Adapted standalone AEO Audit Agent into suite context
+- New files: `aeo/context_builder.py` (matrix context assembly), `aeo/aeo_ui.py` (Streamlit UI)
+- Modified: `aeo/recommender.py` (added `context_block` param), `aeo/analyzer.py` (lxml fallback to html.parser)
+- `aeo_ui.py` uses own `_db_get()`/`_db_post()` helpers to avoid sys.path poisoning from `from app import`
+- sys.path fix: temporarily add `aeo/` for imports, then remove (prevents `aeo/app.py` shadowing root `app.py`)
+- Migration `005_aeo_scores_and_arbeidspakker.sql` created — needs running in Supabase SQL editor
+- Added `openai`, `lxml` to requirements.txt
+- Added "AEO Agent" to sidebar tool selector in `app.py`
+- Dependencies: `OPENAI_API_KEY` must be in Streamlit Cloud secrets for production
+- **Tested locally**: page selector, intelligence panel, intent input work. Arbeidspakke generation needs lxml fix verification.
+- **Next**: Restart app to verify lxml fix, test full arbeidspakke generation end-to-end, commit + push
+
+### Mar 5 2026 — M3: AI Analysis per Crawled URL
+- Built `crawler/ai_analyser.py`: Perplexity API calls, JSON parsing, UPSERT to `crawl_ai_analysis`
+- Added "AI Analysis" tab to `crawler/crawler_ui.py`: batch processing, progress bar, summary metrics, results table with score badges, expandable per-page detail
+- Migration `004_crawl_ai_analysis.sql` created and run in Supabase
+- Scores: seo_score, aeo_readiness_score, content_quality_score (all 0-100)
+- Issues stored as JSONB with type/severity/description
+- 1s delay between API calls for rate limiting
+- **Tested locally**: Pal ran analysis on crawled pages, results saved to Supabase
+- **Next**: M4 (fix recommendations), Matrise (prioritisation view)
+
+### Mar 5 2026 — M2: GSC + GA4 Data Sources (1 session)
+- Built full `google_data/` module: OAuth, GSC client, GA4 client, URL matcher, Streamlit UI
+- 6 new files, 3 SQL migrations, 4 new dependencies
+- OAuth flow: raw httpx (bypassed `Flow` PKCE issues), HMAC-signed CSRF state
+- Fixed `expires_in` → TIMESTAMPTZ conversion bug (Google returns seconds, not timestamp)
+- Tested locally: full OAuth round-trip working, property dropdowns populated
+- GSC/GA4 import untested with real data — Pal's sites have no traffic, awaiting Morten
+- Commit `5f63799`, pushed to master, auto-deployed
+- Streamlit Cloud secrets added, Supabase migrations run
+- **Pal's `pwaagbo@gmail.com` account**: password issue, can't log in. Used `ambiguous80@gmail.com` for testing. Needs password reset.
+- **For Morten**: Add his Gmail as Google OAuth test user in Cloud Console before he can connect
+- **Next**: Morten tests with real GSC/GA4 data, then URL matching verification
 
 ### Mar 4 2026 — Web Crawler module (1 session)
 - Built full `crawler/` package from scratch based on original `crawler-v5.06.html` reference

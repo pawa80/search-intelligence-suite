@@ -8,9 +8,11 @@ import io
 import csv
 from urllib.parse import urlparse
 
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timezone, date
 from crawler.crawler_engine import CrawlerEngine, check_url_list, CrawlResult
 from crawler.sitemap_parser import fetch_sitemap_from_domain, check_sitemap_urls, SitemapEntry
+from crawler.ai_analyser import analyse_page, save_analysis, MODEL
 
 
 def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
@@ -112,13 +114,16 @@ def show_crawler(project_ctx: dict | None = None):
         st.session_state["crawler_project_id"] = None
         st.session_state["crawler_project_domain"] = ""
 
-    tab_crawl, tab_sitemap = st.tabs(["Web Crawl", "Sitemap Check"])
+    tab_crawl, tab_sitemap, tab_ai = st.tabs(["Web Crawl", "Sitemap Check", "AI Analysis"])
 
     with tab_crawl:
         _show_web_crawl()
 
     with tab_sitemap:
         _show_sitemap_check()
+
+    with tab_ai:
+        _show_ai_analysis(project_ctx)
 
 
 def _show_web_crawl():
@@ -133,7 +138,10 @@ def _show_web_crawl():
 
 def _show_crawl_from_url():
     default_domain = st.session_state.get("crawler_project_domain", "")
-    default_url = f"https://{default_domain}" if default_domain else ""
+    if default_domain.startswith(("http://", "https://")):
+        default_url = default_domain
+    else:
+        default_url = f"https://{default_domain}" if default_domain else ""
 
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
@@ -376,3 +384,212 @@ def _show_results_with_export(df: pd.DataFrame, key_prefix: str, filename: str =
             tsv = df.to_csv(sep="\t", index=False)
             st.code(tsv, language=None)
             st.caption("Select all and copy (Ctrl+A, Ctrl+C)")
+
+
+# --- AI Analysis tab ---
+
+def _score_badge(score: int | None) -> str:
+    """Return score with colour emoji indicator."""
+    if score is None:
+        return "—"
+    if score >= 75:
+        return f"🟢 {score}"
+    if score >= 50:
+        return f"🟡 {score}"
+    return f"🔴 {score}"
+
+
+def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
+    """Load pages that have been crawled (last_crawled_at IS NOT NULL)."""
+    from app import db_request
+    try:
+        return db_request("GET", "pages", token,
+                          params={"select": "id,project_id,url,status_code,title,h1,meta_description,word_count,in_sitemap,canonical_url,depth",
+                                  "project_id": f"eq.{project_id}",
+                                  "last_crawled_at": "not.is.null",
+                                  "order": "url.asc"})
+    except Exception:
+        return []
+
+
+def _load_existing_analyses(token: str, project_id: str) -> dict[str, dict]:
+    """Load existing AI analyses keyed by page_id."""
+    from app import db_request
+    try:
+        rows = db_request("GET", "crawl_ai_analysis", token,
+                          params={"select": "page_id,seo_score,aeo_readiness_score,content_quality_score,issues,priority_action,action_plan,analysed_at",
+                                  "project_id": f"eq.{project_id}"})
+        return {r["page_id"]: r for r in rows}
+    except Exception:
+        return {}
+
+
+def _show_ai_analysis(project_ctx: dict | None) -> None:
+    """AI Analysis tab content."""
+    if not project_ctx:
+        st.warning("Select a project to use AI Analysis.")
+        return
+
+    token = st.session_state.get("access_token")
+    if not token:
+        st.warning("Not authenticated.")
+        return
+
+    import os
+    api_key = None
+    try:
+        api_key = st.secrets["PERPLEXITY_API_KEY"]
+    except (KeyError, FileNotFoundError):
+        api_key = os.getenv("PERPLEXITY_API_KEY")
+
+    if not api_key:
+        st.error("PERPLEXITY_API_KEY not configured.")
+        return
+
+    project_id = project_ctx["id"]
+    supabase_url = ""
+    anon_key = ""
+    try:
+        supabase_url = st.secrets["SUPABASE_URL"]
+        anon_key = st.secrets["SUPABASE_ANON_KEY"]
+    except (KeyError, FileNotFoundError):
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        anon_key = os.getenv("SUPABASE_ANON_KEY", "")
+
+    # Load data
+    pages = _load_crawled_pages(token, project_id)
+    if not pages:
+        st.info("No crawled pages found for this project. Run a crawl first, then return here.")
+        return
+
+    analyses = _load_existing_analyses(token, project_id)
+    analysed_ids = set(analyses.keys())
+    page_ids = set(p["id"] for p in pages)
+    unanalysed = [p for p in pages if p["id"] not in analysed_ids]
+
+    # Stats
+    st.markdown(f"**Pages available for analysis:** {len(pages)} total crawled pages")
+    col1, col2 = st.columns(2)
+    col1.metric("Already analysed", len(analysed_ids & page_ids))
+    col2.metric("Not yet analysed", len(unanalysed))
+
+    # Action buttons
+    col_btn1, col_btn2, col_spacer = st.columns([2, 2, 4])
+    with col_btn1:
+        run_new = st.button("Run AI Analysis on Unanalysed Pages", type="primary",
+                            key="btn_ai_analyse_new", disabled=len(unanalysed) == 0)
+    with col_btn2:
+        run_all = st.button("Re-analyse All Pages", key="btn_ai_analyse_all")
+
+    # Run analysis
+    pages_to_analyse = None
+    if run_new and unanalysed:
+        pages_to_analyse = unanalysed
+    elif run_all:
+        pages_to_analyse = pages
+
+    if pages_to_analyse:
+        total = len(pages_to_analyse)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        succeeded = 0
+        failed = 0
+
+        for i, page in enumerate(pages_to_analyse):
+            status_text.text(f"Analysing {i + 1} of {total} pages: {page['url'][:60]}...")
+            progress_bar.progress((i + 1) / total)
+
+            result = analyse_page(page, api_key)
+            if result:
+                ok = save_analysis(result, page["id"], project_id,
+                                   supabase_url, anon_key, token)
+                if ok:
+                    succeeded += 1
+                else:
+                    failed += 1
+            else:
+                failed += 1
+
+            # Rate limit — 1s between requests
+            if i < total - 1:
+                import time
+                time.sleep(1)
+
+        progress_bar.empty()
+        status_text.empty()
+
+        if failed == 0:
+            st.success(f"Done! Analysed {succeeded}/{total} pages.")
+        else:
+            st.warning(f"Done. {succeeded} succeeded, {failed} failed.")
+
+        # Reload analyses after run
+        analyses = _load_existing_analyses(token, project_id)
+
+    # Display results
+    if analyses:
+        st.divider()
+
+        # Summary metrics
+        scores_seo = [a["seo_score"] for a in analyses.values() if a.get("seo_score") is not None]
+        scores_aeo = [a["aeo_readiness_score"] for a in analyses.values() if a.get("aeo_readiness_score") is not None]
+        scores_content = [a["content_quality_score"] for a in analyses.values() if a.get("content_quality_score") is not None]
+        needs_attention = sum(1 for a in analyses.values()
+                              if any((a.get("seo_score") or 0) < 50,
+                                     (a.get("aeo_readiness_score") or 0) < 50,
+                                     (a.get("content_quality_score") or 0) < 50))
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Avg SEO Score", f"{sum(scores_seo) / len(scores_seo):.0f}" if scores_seo else "—")
+        m2.metric("Avg AEO Readiness", f"{sum(scores_aeo) / len(scores_aeo):.0f}" if scores_aeo else "—")
+        m3.metric("Avg Content Quality", f"{sum(scores_content) / len(scores_content):.0f}" if scores_content else "—")
+        m4.metric("Needs Attention", needs_attention)
+
+        st.divider()
+
+        # Build page URL lookup
+        page_url_lookup = {p["id"]: p["url"] for p in pages}
+
+        # Results table
+        st.subheader("Analysis Results")
+        table_data = []
+        for page_id, a in analyses.items():
+            table_data.append({
+                "URL": page_url_lookup.get(page_id, "Unknown"),
+                "SEO Score": _score_badge(a.get("seo_score")),
+                "AEO Score": _score_badge(a.get("aeo_readiness_score")),
+                "Content Score": _score_badge(a.get("content_quality_score")),
+                "Priority Action": a.get("priority_action", "—"),
+                "Last Analysed": (a.get("analysed_at") or "")[:10],
+            })
+
+        # Sort by SEO score ascending (worst first)
+        table_data.sort(key=lambda x: int(x["SEO Score"].split()[-1]) if x["SEO Score"] != "—" else 999)
+        st.dataframe(table_data, use_container_width=True, hide_index=True)
+
+        # Expandable details per page
+        st.divider()
+        st.subheader("Detailed Issues")
+        for page_id, a in analyses.items():
+            url = page_url_lookup.get(page_id, "Unknown")
+            with st.expander(f"{url}"):
+                col_s1, col_s2, col_s3 = st.columns(3)
+                col_s1.markdown(f"**SEO:** {_score_badge(a.get('seo_score'))}")
+                col_s2.markdown(f"**AEO:** {_score_badge(a.get('aeo_readiness_score'))}")
+                col_s3.markdown(f"**Content:** {_score_badge(a.get('content_quality_score'))}")
+
+                st.markdown(f"**Priority Action:** {a.get('priority_action', '—')}")
+                st.markdown(f"**Action Plan:** {a.get('action_plan', '—')}")
+
+                issues = a.get("issues", [])
+                if isinstance(issues, str):
+                    try:
+                        issues = json.loads(issues)
+                    except (json.JSONDecodeError, TypeError):
+                        issues = []
+                if issues:
+                    st.markdown("**Issues:**")
+                    for issue in issues:
+                        severity = issue.get("severity", "").lower()
+                        icon = "🔴" if severity == "high" else "🟡" if severity == "medium" else "🟢"
+                        st.markdown(f"- {icon} **{issue.get('type', '')}**: {issue.get('description', '')}")
