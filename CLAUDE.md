@@ -93,12 +93,21 @@ Pal + Morten collaboration.
 
 ## Next Up
 - **Matrise**: Prioritisation view — ranks pages by score, shows where to focus effort
-- **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user)
+- **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
+- **AEO Agent E2E test**: Generate arbeidspakke on a real crawled page, verify it saves to `arbeidspakker` table and displays correctly
 - **Section 6**: Data import (historical GEO Tracker data migration)
 - **Section 7**: Mobile optimisation
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
 - Remove "Test (3 queries)" button once stable (or keep as dev convenience)
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
+
+## Notes for Product Director
+- **M2-M4 all deployed** (commit 162e273). Streamlit Cloud auto-deploys from master.
+- **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
+- **AEO Agent depends on OPENAI_API_KEY** — added to Streamlit Cloud secrets ✓
+- **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
+- **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
+- **`requests` package**: Used by `aeo/analyzer.py` but not in requirements.txt. Works because it's a transitive dep of streamlit. Could add explicitly if it ever breaks on Cloud.
 
 ## RLS Debugging Pattern (for future reference)
 When adding new tables that reference `projects` or `workspaces`:
