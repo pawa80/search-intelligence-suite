@@ -91,9 +91,9 @@ Pal + Morten collaboration.
 - **Data Sources (M2)**: GSC + GA4 data import with URL matching. Module (`google_data/`), accessible via sidebar tool selector. See Data Sources section below.
 - **AI Analysis (M3)**: Per-page AI assessment (SEO, AEO, content quality). Tab inside Web Crawler tool. See AI Analysis section below.
 - **AEO Agent (M4)**: Integrated AEO audit with matrix context from suite data. Sidebar tool. See AEO Agent section below.
+- **Matrise**: Prioritisation view — computed from all modules, ranks pages by priority score. Sidebar tool. See Matrise section below.
 
 ## Next Up
-- **Matrise**: Prioritisation view — ranks pages by score, shows where to focus effort
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
 - **AEO Agent E2E test**: Generate arbeidspakke on a real crawled page, verify it saves to `arbeidspakker` table and displays correctly
 - **Section 6**: Data import (historical GEO Tracker data migration)
@@ -103,12 +103,13 @@ Pal + Morten collaboration.
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
 
 ## Notes for Product Director
-- **M2-M4 all deployed** (commit 162e273). Streamlit Cloud auto-deploys from master.
+- **M2-M4 + Matrise all deployed**. Streamlit Cloud auto-deploys from master.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
 - **AEO Agent depends on OPENAI_API_KEY** — added to Streamlit Cloud secrets ✓
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
 - **`requests` package**: Used by `aeo/analyzer.py` but not in requirements.txt. Works because it's a transitive dep of streamlit. Could add explicitly if it ever breaks on Cloud.
+- **Matrise Generate button**: Stub only — sets `matrise_generate_url` in session state and switches to AEO Agent, but AEO Agent doesn't yet read that value to pre-select the page. Cross-tool nav polish is next.
 
 ## RLS Debugging Pattern (for future reference)
 When adding new tables that reference `projects` or `workspaces`:
@@ -285,8 +286,50 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Tables
 - `arbeidspakker` (id, page_id FK→pages, project_id FK→projects, url, intent, arbeidspakke_markdown, context_snapshot JSONB, generated_at) — RLS via `user_owns_project()`
 
+## Matrise Module
+
+### Architecture
+- **Location**: `matrise/` package — `matrise_ui.py`
+- **Access**: Sidebar tool selector in `app.py` ("Matrise")
+- **No database table** — computed view assembled at runtime from existing tables
+- **No new dependencies**
+
+### What It Does
+- Fetches all crawled pages + crawl_ai_analysis + gsc_data + ga_data + arbeidspakker for a project
+- Joins on page_id, deduplicates GSC/GA to most recent date range per page
+- Calculates a priority_score (0-100) per page using weighted formula:
+  - AEO gap 40% (low readiness = high opportunity)
+  - SEO gap 20% (low score = technical debt)
+  - Traffic signal 25% (impressions/clicks from GSC)
+  - Engagement signal 15% (sessions from GA4)
+- Sorted by priority_score descending — highest opportunity pages first
+
+### UI
+- Summary metrics: total pages, with AI scores, with GSC data, with arbeidspakke
+- CSV export button (filename: `matrise-{domain}-{date}.csv`)
+- Header row + data rows using `st.columns` with colour-coded badges
+- Priority: red 70+, yellow 40-69, green <40
+- Scores: red <50, yellow 50-74, green 75+
+- Missing data shown as em dash (\u2014)
+- Generate button per row → switches to AEO Agent tool (stub — sets session state)
+- Expandable detail per row: priority action, GSC/GA date ranges, last crawled
+
+### Generate Button Wiring
+- Sets `st.session_state["matrise_generate_url"]` and switches `active_tool` to "AEO Agent"
+- AEO Agent does not yet consume `matrise_generate_url` — cross-tool nav is a stub for now
+
 ## Rolling Handover
-Last session: Mar 5 2026 (M2 + M3 + M4 build)
+Last session: Mar 5 2026 (M2 + M3 + M4 + Matrise build)
+
+### Mar 5 2026 — Matrise: Prioritisation View
+- New module `matrise/matrise_ui.py` — computed view, no new Supabase table
+- Joins pages + crawl_ai_analysis + gsc_data + ga_data + arbeidspakker at runtime
+- Priority score formula: AEO gap (40%) + SEO gap (20%) + traffic (25%) + engagement (15%)
+- Colour-coded table with header row, expandable detail per page
+- CSV export, Generate button (stub — switches tool to AEO Agent)
+- Added "Matrise" to sidebar tool selector in `app.py`
+- Unit tested: priority_score formula produces correct rankings
+- **No migration needed** — reads existing tables only
 
 ### Mar 5 2026 — M4: AEO Agent Integration
 - Adapted standalone AEO Audit Agent into suite context

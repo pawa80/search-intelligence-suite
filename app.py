@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from crawler.crawler_ui import show_crawler
 from google_data.datasources_ui import show_datasources, handle_oauth_callback_if_present
 from aeo.aeo_ui import show_aeo_agent
+from matrise.matrise_ui import show_matrise
 
 load_dotenv()
 
@@ -456,7 +457,7 @@ def show_dashboard():
         st.caption(user.email)
 
         # Tool selector
-        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent"], key="active_tool")
+        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"], key="active_tool")
         st.divider()
 
         if projects:
@@ -536,6 +537,20 @@ def show_dashboard():
             if p:
                 project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_aeo_agent(
+            project_ctx=project_ctx,
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
+        return
+
+    if st.session_state.get("active_tool") == "Matrise":
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_matrise(
             project_ctx=project_ctx,
             token=token,
             workspace_id=workspace["id"],
