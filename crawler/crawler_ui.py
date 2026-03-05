@@ -152,10 +152,13 @@ def _show_crawl_from_url():
         max_depth = st.number_input("Max depth", min_value=1, max_value=20, value=10,
                                     key="crawl_max_depth")
     with col3:
-        max_pages = st.number_input("Max pages", min_value=1, max_value=2000, value=20,
+        max_pages = st.number_input("Max pages", min_value=1, max_value=500, value=20,
                                     key="crawl_max_pages")
 
     skip_dupes = st.checkbox("Skip duplicates", value=True, key="crawl_skip_dupes")
+
+    if max_pages > 100:
+        st.caption("Large crawls can take a while. Refresh the page to stop at any time — partial results are saved.")
 
     col_start, col_clear = st.columns([1, 5])
     with col_start:
@@ -190,6 +193,8 @@ def _show_crawl_from_url():
                     sitemap_status.warning("No sitemap found — 'In Sitemap' will show N/A")
 
             results.append(result)
+            # Save partial results so they survive if user stops (refreshes/clicks away)
+            st.session_state["crawl_results"] = results
             s = engine.stats
             stats_container.markdown(
                 f"**Discovered:** {s['discovered']} · "
