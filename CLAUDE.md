@@ -315,8 +315,9 @@ When adding new tables that reference `projects` or `workspaces`:
 - Expandable detail per row: priority action, GSC/GA date ranges, last crawled
 
 ### Generate Button Wiring
-- Sets `st.session_state["matrise_generate_url"]` and switches `active_tool` to "AEO Agent"
-- AEO Agent does not yet consume `matrise_generate_url` — cross-tool nav is a stub for now
+- Sets `st.session_state["matrise_generate_url"]` and `current_tool` to "AEO Agent", then reruns
+- `current_tool` is NOT widget-bound (no `key=` on selectbox) — so it can be set programmatically
+- AEO Agent does not yet consume `matrise_generate_url` to pre-select the page — wiring needed
 
 ## Rolling Handover
 Last session: Mar 5 2026 (M2 + M3 + M4 + Matrise build)

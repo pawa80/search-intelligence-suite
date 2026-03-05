@@ -456,16 +456,12 @@ def show_dashboard():
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
 
-        # Tool selector — _tool_override allows programmatic switching (e.g. Matrise → AEO Agent)
+        # Tool selector — current_tool is NOT widget-bound so it can be set programmatically
         _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"]
-        if st.session_state.get("_tool_override") in _tools:
-            # Must delete cached widget value so selectbox picks up new index
-            override = st.session_state.pop("_tool_override")
-            if "active_tool" in st.session_state:
-                del st.session_state["active_tool"]
-            tool = st.selectbox("Tool", _tools, index=_tools.index(override), key="active_tool")
-        else:
-            tool = st.selectbox("Tool", _tools, key="active_tool")
+        _current = st.session_state.get("current_tool", "Rank Tracker")
+        _idx = _tools.index(_current) if _current in _tools else 0
+        tool = st.selectbox("Tool", _tools, index=_idx)
+        st.session_state["current_tool"] = tool
         st.divider()
 
         if projects:
@@ -514,7 +510,7 @@ def show_dashboard():
             st.rerun()
 
     # --- Route to selected tool ---
-    if st.session_state.get("active_tool") == "Web Crawler":
+    if st.session_state.get("current_tool") == "Web Crawler":
         # Pass project context to crawler (if a project is selected)
         project_ctx = None
         if st.session_state.selected_project_id and projects:
@@ -524,7 +520,7 @@ def show_dashboard():
         show_crawler(project_ctx=project_ctx)
         return
 
-    if st.session_state.get("active_tool") == "Data Sources":
+    if st.session_state.get("current_tool") == "Data Sources":
         project_ctx = None
         if st.session_state.selected_project_id and projects:
             p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
@@ -538,7 +534,7 @@ def show_dashboard():
         )
         return
 
-    if st.session_state.get("active_tool") == "AEO Agent":
+    if st.session_state.get("current_tool") == "AEO Agent":
         project_ctx = None
         if st.session_state.selected_project_id and projects:
             p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
@@ -552,7 +548,7 @@ def show_dashboard():
         )
         return
 
-    if st.session_state.get("active_tool") == "Matrise":
+    if st.session_state.get("current_tool") == "Matrise":
         project_ctx = None
         if st.session_state.selected_project_id and projects:
             p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
