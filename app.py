@@ -11,6 +11,7 @@ from datetime import date
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 from crawler.crawler_ui import show_crawler
+from google_data.datasources_ui import show_datasources, handle_oauth_callback_if_present
 
 load_dotenv()
 
@@ -413,7 +414,7 @@ def show_dashboard():
         st.caption(user.email)
 
         # Tool selector
-        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler"], key="active_tool")
+        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler", "Data Sources"], key="active_tool")
         st.divider()
 
         if projects:
@@ -451,6 +452,9 @@ def show_dashboard():
         if st.button("Logout"):
             logout()
 
+    # --- Handle OAuth callback (must run before UI renders) ---
+    handle_oauth_callback_if_present()
+
     # --- Show errors ---
     if st.session_state.error:
         st.error(f"Error: {st.session_state.error}")
@@ -467,6 +471,20 @@ def show_dashboard():
             if p:
                 project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_crawler(project_ctx=project_ctx)
+        return
+
+    if st.session_state.get("active_tool") == "Data Sources":
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_datasources(
+            project_ctx=project_ctx,
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
         return
 
     # --- Rank Tracker main area ---
