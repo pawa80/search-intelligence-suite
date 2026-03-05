@@ -540,9 +540,9 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
         scores_aeo = [a["aeo_readiness_score"] for a in analyses.values() if a.get("aeo_readiness_score") is not None]
         scores_content = [a["content_quality_score"] for a in analyses.values() if a.get("content_quality_score") is not None]
         needs_attention = sum(1 for a in analyses.values()
-                              if any((a.get("seo_score") or 0) < 50,
-                                     (a.get("aeo_readiness_score") or 0) < 50,
-                                     (a.get("content_quality_score") or 0) < 50))
+                              if any(((a.get("seo_score") or 0) < 50,
+                                      (a.get("aeo_readiness_score") or 0) < 50,
+                                      (a.get("content_quality_score") or 0) < 50)))
 
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Avg SEO Score", f"{sum(scores_seo) / len(scores_seo):.0f}" if scores_seo else "—")
