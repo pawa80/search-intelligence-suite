@@ -86,7 +86,7 @@ def _db_post(token: str, table: str, body: dict) -> bool:
 def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
     """Load all crawled pages for this project."""
     return _db_get(token, "pages", {
-        "select": "id,url,title,status_code",
+        "select": "id,url,title,h1,status_code",
         "project_id": f"eq.{project_id}",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",
@@ -124,10 +124,24 @@ def _save_arbeidspakke(
     })
 
 
-def _format_arbeidspakke(recs: dict, context_block: str) -> str:
+def _format_arbeidspakke(recs: dict, context_block: str, url: str = "",
+                         title: str = "", h1: str = "", intent: str = "") -> str:
     """Format recommendation JSON into readable markdown arbeidspakke."""
     lines = []
     lines.append("# Arbeidspakke — AEO Audit Report\n")
+
+    # Page identity block
+    if url:
+        lines.append(f"**URL:** {url}")
+    if title:
+        lines.append(f"**Title tag:** {title}")
+    if h1 and h1 != title:
+        lines.append(f"**H1:** {h1}")
+    if intent:
+        lines.append(f"**Intent:** {intent}")
+    if url or title or intent:
+        lines.append("")
+
     lines.append(context_block)
 
     # Summary
@@ -333,7 +347,13 @@ def show_aeo_agent(
             )
 
         # Format as markdown
-        arbeidspakke_md = _format_arbeidspakke(recs, context_block)
+        arbeidspakke_md = _format_arbeidspakke(
+            recs, context_block,
+            url=url,
+            title=analysis.title or selected_page.get("title") or "",
+            h1=selected_page.get("h1") or "",
+            intent=intent,
+        )
 
         # Save to session state for display
         st.session_state["aeo_arbeidspakke"] = arbeidspakke_md
