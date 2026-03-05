@@ -1,5 +1,5 @@
 # AEO OPTIMIZATION GUIDE FOR AI APIs
-**Version:** 1.0 | **Last Updated:** 26 January 2026
+**Version:** 1.1 | **Last Updated:** 5 March 2026
 **Purpose:** Machine-readable reference for AI systems providing AEO optimization advice on web pages.
 **Source:** Synced from Notion page 2f49fa1ce4f5805dac3edce68f48be61. Run sync_aeo_guide.py to update.
 
@@ -319,3 +319,105 @@ This guide covers content optimization only. Do not provide advice on:
 - Social media strategy (except as authority signal)
 - Link building tactics
 - General SEO beyond AEO relevance
+
+---
+
+## SECTION 11: ADVANCED CITATION ACQUISITION
+
+This section covers three research-backed tactics that determine citation rate but are not covered in Sections 1–10: content freshness mechanics, the "best of" listicle strategy, and cross-platform brand consistency.
+
+### 11.1 Content Freshness as a Citation Signal (VERIFIED)
+
+AI answer engines weight recency as a measurable trust signal, not just a quality proxy.
+
+**Quantified benchmarks (2025–2026 research):**
+
+| Metric | Data Point | Source |
+|---|---|---|
+| Content age of cited pages | 95% of ChatGPT citations from content published within last 10 months | Large-scale 129k domain analysis |
+| Update recency of top-cited pages | 76.4% updated within last 30 days | Multiple 2025 studies |
+| Timestamp visibility effect | Pages with visible "last updated" label receive ~1.8× more citations | 2025 AEO studies |
+| Freshness weight in AEO scoring | ~10–15% of overall citation scoring model | AEO scoring frameworks |
+| Improvement from systematic refresh | 3–6× improvement in citation rate once freshness is addressed | 2026 market reports |
+
+**Implementation rules:**
+
+| Tactic | Implementation |
+|---|---|
+| Technical timestamps | Add `datePublished` and `dateModified` in JSON-LD (ISO 8601 format) |
+| On-page temporal markers | Include "Updated [Month Year]" in first 200 words |
+| URL and title signals | Include current year in title tags, meta descriptions, URL slugs for evergreen content |
+| Update cadence | Refresh highest-value pages at minimum monthly; even minor substantive updates register |
+| Avoid cosmetic edits | Changing "2024" to "2025" without content changes does not trigger freshness signals |
+
+**Optimization implication:** Freshness gates eligibility before other signals are evaluated on time-sensitive topics. A perfectly structured page with stale timestamps may be disqualified before grounding budget is allocated.
+
+### 11.2 The "Best Of" Listicle Strategy
+
+**Research basis:** Ahrefs analysis of 26,283 source URLs across ~750 "best X" prompts in ChatGPT.
+
+**Core finding:** AI systems prefer to extract from a single comprehensive source rather than aggregate from multiple pages. This creates a structural citation advantage for "best of" style content.
+
+**Key data points:**
+- 44% of all ChatGPT citations come from "best of" / "top tools" / comparison list content
+- 35% of cited listicles come from low-authority domains — domain strength is less important than structure and recency
+- 79% of cited "best X" posts had been updated within the prior 90 days
+- Tables within listicles increase citation likelihood 2.5× vs. unstructured list content
+
+**The self-inclusion mechanic:** AI systems evaluate whether a source is structured, fresh, comprehensive, and crawlable — not whether it is editorially neutral. A brand that publishes a "Best [Category] Tools in 2026" article and includes itself is competing for citation on the same structural criteria as third-party reviews. This has been documented as a consistent pattern in Ahrefs' research (Asana, Zapier, and others).
+
+**Implementation rules:**
+
+| Requirement | Specification |
+|---|---|
+| Format | Listicle with numbered or structured entries |
+| Update frequency | Minimum quarterly; monthly preferred |
+| Table inclusion | Add comparison table — required for 2.5× citation multiplier |
+| Self-inclusion | Position honestly; typically position 2–4 performs better than position 1 (appears less promotional to AI scoring) |
+| Indexation | Ensure Bing indexes the page (ChatGPT uses Bing as primary crawl source) |
+| Scope | Create minimum 3 "best X for Y" articles per core category |
+
+**Confidence level:** High (85%) on content type dominance. Medium (70%) on self-inclusion citation mechanics — documented but not yet replicated across controlled studies.
+
+### 11.3 Cross-Platform Brand Consistency
+
+**Core finding:** Only ~11% of domains are cited by both ChatGPT and Perplexity. The overlap correlates with consistent, verifiable brand presence across multiple authoritative external sources — not with any single platform optimization.
+
+**Why this matters:** AI systems verify entity claims by cross-referencing multiple sources. Inconsistent brand descriptions, founding dates, or product descriptions across platforms create entity confidence failures that suppress citation.
+
+**High-priority citation platforms (ChatGPT + Perplexity overlap):**
+
+| Platform | Citation Role |
+|---|---|
+| Wikipedia / Wikidata | ~29.7% of ChatGPT's top 1,000 citations; highest-weight entity validation source |
+| Reddit | High citation rate for conversational and comparison queries |
+| LinkedIn (company page) | Entity verification for B2B brands |
+| G2 / Capterra / Trustpilot | Category citation sources for software and services |
+| Industry directories and bodies | Domain-specific authority signals |
+| Press/PR coverage | External attribution that validates brand claims |
+
+**Implementation rules:**
+- Audit brand name, description, founding date, product category, and target market across all platforms for consistency
+- Prioritize Wikipedia/Wikidata presence if eligible — this single source has disproportionate impact
+- Ensure consistent naming conventions (no variation between "Acme Corp", "Acme Corporation", "ACME")
+- Treat each platform as a citation source, not a traffic source — the goal is entity corroboration, not clicks
+
+**Confidence level:** Medium-high (80%) on cross-platform consistency as a citation driver. The 11% overlap figure is well-documented; causal mechanism between consistency and citation rate is directionally supported but not isolated in controlled research.
+
+### 11.4 Multimodal Content Signals (Emerging — Lower Confidence)
+
+**Note:** This area is evolving rapidly. Treat as directional guidance, not established best practice.
+
+AI Overviews and answer engines are increasingly pulling from non-text content. Pages where visual and media signals reinforce text claims receive higher confidence scores than text-only pages.
+
+**Current signal set:**
+- **Image alt text**: Descriptive, contextual alt text is now an AEO signal, not only an accessibility requirement. Alt text should include entity names and semantic relationships consistent with the page's primary intent
+- **Video transcripts**: Published transcripts and captions allow AI systems to extract claims from video content. A page with a video but no transcript is partially opaque to AI extraction
+- **Image captions**: Treated as supporting claims for the adjacent text content
+- **Schema for media**: `VideoObject` schema with `transcript` property and `ImageObject` schema increase extractability
+
+**Confidence level:** Medium (65–70%). Direction is clear; specific citation rate impact of multimodal signals is not yet quantified in published research. Prioritize after Sections 11.1–11.3.
+
+---
+
+**Sources:** Ahrefs (2025), multiple large-scale AEO citation analyses (2025–2026), Perplexity-aggregated research. Statistics in Section 11 carry medium-high confidence. The 11.4 multimodal section is flagged as emerging. All data subject to same evolution caveat as Section 9.
