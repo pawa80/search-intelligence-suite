@@ -237,6 +237,13 @@ def show_aeo_agent(
             return
 
         page_options = [f"{p['url']} — {(p.get('title') or '')[:50]}" for p in pages]
+        # Pre-select page if coming from Matrise Generate button
+        matrise_url = st.session_state.pop("matrise_generate_url", None)
+        if matrise_url:
+            for i, p in enumerate(pages):
+                if p["url"] == matrise_url:
+                    st.session_state["aeo_page_select"] = i
+                    break
         selected_idx = st.selectbox("Select a crawled page", range(len(page_options)),
                                      format_func=lambda i: page_options[i],
                                      key="aeo_page_select")
