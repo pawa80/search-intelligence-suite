@@ -458,10 +458,14 @@ def show_dashboard():
 
         # Tool selector — _tool_override allows programmatic switching (e.g. Matrise → AEO Agent)
         _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"]
-        _default_idx = 0
         if st.session_state.get("_tool_override") in _tools:
-            _default_idx = _tools.index(st.session_state.pop("_tool_override"))
-        tool = st.selectbox("Tool", _tools, index=_default_idx, key="active_tool")
+            # Must delete cached widget value so selectbox picks up new index
+            override = st.session_state.pop("_tool_override")
+            if "active_tool" in st.session_state:
+                del st.session_state["active_tool"]
+            tool = st.selectbox("Tool", _tools, index=_tools.index(override), key="active_tool")
+        else:
+            tool = st.selectbox("Tool", _tools, key="active_tool")
         st.divider()
 
         if projects:
