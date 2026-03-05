@@ -456,8 +456,12 @@ def show_dashboard():
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
 
-        # Tool selector
-        tool = st.selectbox("Tool", ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"], key="active_tool")
+        # Tool selector — _tool_override allows programmatic switching (e.g. Matrise → AEO Agent)
+        _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise"]
+        _default_idx = 0
+        if st.session_state.get("_tool_override") in _tools:
+            _default_idx = _tools.index(st.session_state.pop("_tool_override"))
+        tool = st.selectbox("Tool", _tools, index=_default_idx, key="active_tool")
         st.divider()
 
         if projects:
