@@ -353,8 +353,7 @@ def show_matrise(
             cols[10].markdown("\u2014")
         if cols[11].button("Generate", key=f"matrise_gen_{idx}"):
             st.session_state["matrise_generate_url"] = r["url"]
-            st.session_state["active_tool"] = "AEO Agent"
-            st.rerun()
+            st.toast(f"Switch to AEO Agent in the sidebar to generate arbeidspakke for {url_short}")
 
         # Expandable detail
         with st.expander(f"Details: {url_short}", expanded=False):
