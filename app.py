@@ -40,7 +40,7 @@ st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", lay
 def init_session_state():
     defaults = {
         "user": None, "workspace": None, "access_token": None,
-        "error": None, "selected_project_id": None,
+        "refresh_token": None, "error": None, "selected_project_id": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -50,11 +50,19 @@ def init_session_state():
 def _refresh_jwt():
     """Refresh the Supabase JWT using the current session. Returns new token or None."""
     try:
+        # Restore session from stored tokens so supabase client has context
+        stored_access = st.session_state.get("access_token")
+        stored_refresh = st.session_state.get("refresh_token")
+        if stored_access and stored_refresh:
+            try:
+                supabase.auth.set_session(stored_access, stored_refresh)
+            except Exception:
+                pass
         response = supabase.auth.refresh_session()
         if response and response.session:
-            new_token = response.session.access_token
-            st.session_state.access_token = new_token
-            return new_token
+            st.session_state.access_token = response.session.access_token
+            st.session_state.refresh_token = response.session.refresh_token
+            return response.session.access_token
     except Exception:
         pass
     return None
@@ -204,7 +212,7 @@ def ensure_workspace(user, access_token):
 
 def logout():
     supabase.auth.sign_out()
-    for key in ["user", "workspace", "access_token", "error", "selected_project_id"]:
+    for key in ["user", "workspace", "access_token", "refresh_token", "error", "selected_project_id"]:
         st.session_state[key] = None
     st.rerun()
 
@@ -411,6 +419,7 @@ def show_auth_page():
                         token = response.session.access_token
                         st.session_state.user = response.user
                         st.session_state.access_token = token
+                        st.session_state.refresh_token = response.session.refresh_token
                         workspace = ensure_workspace(response.user, token)
                         if workspace:
                             st.session_state.workspace = workspace
@@ -434,6 +443,7 @@ def show_auth_page():
                             token = response.session.access_token
                             st.session_state.user = response.user
                             st.session_state.access_token = token
+                            st.session_state.refresh_token = response.session.refresh_token
                             workspace = ensure_workspace(response.user, token)
                             if workspace:
                                 st.session_state.workspace = workspace
@@ -820,7 +830,14 @@ def main():
     init_session_state()
 
     if st.session_state.user and st.session_state.workspace:
-        show_dashboard()
+        try:
+            show_dashboard()
+        except Exception as e:
+            if "401" in str(e) and ("JWT" in str(e) or "expired" in str(e)):
+                st.warning("Session expired. Please log in again.")
+                logout()
+            else:
+                raise
     else:
         show_auth_page()
 
