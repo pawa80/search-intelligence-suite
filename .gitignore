@@ -1,5 +1,7 @@
 .env
+.env.*
 __pycache__/
 .streamlit/secrets.toml
 *.pyc
 .venv/
+.claude/
