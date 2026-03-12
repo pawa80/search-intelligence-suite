@@ -1,5 +1,10 @@
 # Search Intelligence Suite
 
+## Cross-Project Dependencies (maintained by COO, pal-ops)
+- **SHARED SUPABASE**: This project uses Supabase project `dxduneaizaxnynsmsvbx`, which is ALSO used by GEO Tracker (gen-seo-tracker) and AEO Audit Agent. All three apps read/write to the same PostgreSQL instance. Do NOT make schema changes without checking with COO (pal-ops chat) first.
+- **AEO Agent module**: The `aeo/` folder in this project is an adapted version of the standalone AEO Audit Agent (`C:\palai3\projects\aeo-audit-agent`). Changes to AEO logic should be coordinated. The standalone agent has its own deployment on Streamlit Cloud.
+- **Deployment estate**: See global CLAUDE.md (`C:\Users\Pal\.claude\CLAUDE.md`) for full catalogue of all deployments.
+
 ## Project Overview
 Suite of AI search optimisation tools. Starting with GEO Tracker migration into shared workspace model.
 Pal + Morten collaboration.
@@ -347,6 +352,16 @@ When adding new tables that reference `projects` or `workspaces`:
 
 ## Rolling Handover
 Last session: Mar 12 2026
+
+### Mar 12 2026 — Language detection bugfix
+- **Bug**: English pages produced Norwegian arbeidspakker. Root cause: system prompt saturated with Norwegian template text biasing Sonnet.
+- **Fix** (commit 41e7d37):
+  - Language instruction moved to very top of system prompt (first thing model reads)
+  - Hardcoded Norwegian removed from template: "Hovedfunn" → "Key findings", "Vanlige spørsmål om" → "Frequently asked questions about", "arbeidspakke" → "work package"
+  - Language reminder added in user message right before page content
+  - Rule #6 added to OUTPUT QUALITY RULES reinforcing language matching
+- **Test expectation**: English page → English output, Norwegian page → Norwegian output
+- **Only file changed**: `aeo/recommender.py`
 
 ### Mar 12 2026 — Arbeidspakke gold standard + Claude Sonnet 4 + date column
 - **Safety tag**: `v2.0-working-2026-03-12` on pre-change state
