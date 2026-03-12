@@ -470,7 +470,11 @@ Last session: Mar 12 2026
   - Instructs AI to ground all rewrites in the brand's identity, services, and positioning
 - **Commit**: 75aa716, pushed, auto-deploying
 
-**Next**: Run migrations 006 + 007 in Supabase SQL editor (008 done ✓). Test language fix on English page. Test all features: usage tracking, page types, persistent overview, intent save, domain context. Then Morten tests with real data.
+**Next**:
+- Run migrations 006 + 007 in Supabase SQL editor (008 done ✓)
+- Test: page types, persistent crawler overview, language detection (English page → English output)
+- Re-enable domain context + intent persistence after fixing Streamlit widget scoping (search `DISABLED:` in app.py + aeo/aeo_ui.py)
+- Morten tests with real GSC/GA4 data (his Gmail needs adding as Google OAuth test user first)
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 
