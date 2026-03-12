@@ -341,6 +341,23 @@ Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
 
         result_text = message.content[0].text.strip()
 
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            _in = message.usage.input_tokens
+            _out = message.usage.output_tokens
+            _cost = (_in * 3 + _out * 15) / 1_000_000
+            log_usage_event(
+                event_type="arbeidspakke_generation",
+                api_provider="anthropic",
+                model="claude-sonnet-4-20250514",
+                input_tokens=_in,
+                output_tokens=_out,
+                estimated_cost_usd=_cost,
+            )
+        except Exception:
+            pass
+
         # Claude returns markdown directly — wrap in dict for compatibility with
         # _format_arbeidspakke() which reads recs.get('summary')
         return {

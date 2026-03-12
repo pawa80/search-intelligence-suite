@@ -255,6 +255,17 @@ def _show_gsc_import(
 
         st.success(f"Saved {saved} GSC rows. {matched}/{saved} matched to crawled pages.")
 
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            log_usage_event(
+                event_type="gsc_import",
+                event_detail=f"{saved} rows",
+                project_id=project_ctx["id"],
+            )
+        except Exception:
+            pass
+
     # Show existing data
     _show_existing_gsc_data(token, project_ctx["id"])
 
@@ -329,6 +340,17 @@ def _show_ga4_import(
                 break
 
         st.success(f"Saved {saved} GA4 rows. {matched}/{saved} matched to crawled pages.")
+
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            log_usage_event(
+                event_type="ga_import",
+                event_detail=f"{saved} rows",
+                project_id=project_ctx["id"],
+            )
+        except Exception:
+            pass
 
     # Show existing data
     _show_existing_ga4_data(token, project_ctx["id"])

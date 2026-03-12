@@ -366,6 +366,18 @@ def run_citation_check(access_token, project_id, domain, queries, api_key):
     progress_bar.empty()
     status_text.empty()
 
+    # Track usage
+    try:
+        from tracking.usage_tracker import log_usage_event
+        log_usage_event(
+            event_type="citation_check",
+            api_provider="perplexity",
+            event_detail=f"{checked} queries checked",
+            project_id=project_id,
+        )
+    except Exception:
+        pass
+
     msg = f"Done! {checked}/{total} queries checked."
     if failures:
         msg += f" {failures} failed."
@@ -423,6 +435,14 @@ def show_auth_page():
                         workspace = ensure_workspace(response.user, token)
                         if workspace:
                             st.session_state.workspace = workspace
+
+                        # Track login
+                        try:
+                            from tracking.usage_tracker import log_usage_event
+                            log_usage_event(event_type="login")
+                        except Exception:
+                            pass
+
                         st.rerun()
 
     with tab_signup:
@@ -471,7 +491,14 @@ def show_dashboard():
         _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise", "Arbeidspakker"]
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
+        _prev_tool = st.session_state.get("active_tool")
         tool = st.selectbox("Tool", _tools, key="active_tool")
+        if tool != _prev_tool:
+            try:
+                from tracking.usage_tracker import log_usage_event
+                log_usage_event(event_type="tool_switch", event_detail=tool)
+            except Exception:
+                pass
         st.divider()
 
         if projects:

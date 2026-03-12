@@ -82,7 +82,23 @@ def analyse_page(page: dict[str, Any], api_key: str) -> dict[str, Any] | None:
             timeout=30.0,
         )
         response.raise_for_status()
-        raw = response.json()["choices"][0]["message"]["content"]
+        resp_json = response.json()
+        raw = resp_json["choices"][0]["message"]["content"]
+
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            usage = resp_json.get("usage", {})
+            log_usage_event(
+                event_type="ai_analysis",
+                api_provider="perplexity",
+                model=MODEL,
+                input_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"),
+            )
+        except Exception:
+            pass
+
         # Strip any accidental backticks or markdown
         clean = raw.strip().strip("```json").strip("```").strip()
         return json.loads(clean)

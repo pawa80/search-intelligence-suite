@@ -212,6 +212,16 @@ def _show_crawl_from_url():
         st.session_state["crawl_results"] = results
         st.success(f"Done! Crawled {len(results)} pages.")
 
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            log_usage_event(
+                event_type="page_crawl",
+                event_detail=f"{len(results)} pages crawled",
+            )
+        except Exception:
+            pass
+
         # Save to Supabase if project is selected
         if results and st.session_state.get("crawler_project_id"):
             saved, failed = _save_crawl_results(results)

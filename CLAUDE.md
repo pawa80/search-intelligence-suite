@@ -55,6 +55,9 @@ Pal + Morten collaboration.
 ### RPC Functions (additional)
 - `user_owns_project(p_id uuid)` — SECURITY DEFINER, checks project→workspace→member chain in one call. Used by `geo_check_results` RLS policies to avoid nested RLS subquery issues.
 
+### Tables (continued)
+- `usage_events` (id, user_id, project_id FK→projects, event_type, event_detail, api_provider, model, input_tokens, output_tokens, estimated_cost_usd, created_at) — RLS: INSERT `user_id = auth.uid()`, SELECT `user_id = auth.uid()`. Fire-and-forget tracking for all API calls and app analytics.
+
 ### RLS Policies
 - `workspaces` INSERT: `created_by = auth.uid()`
 - `workspaces` SELECT: `created_by = auth.uid()`
@@ -373,6 +376,19 @@ Last session: Mar 12 2026
 - Q2 Summary heading: Fixed — removed.
 - Q3 Intelligence panel: Parked. Gold standard arbeidspakke is the deliverable. Verdicts were noise for target user (marketer executing work package).
 - Q4 Language: Auto-detection sufficient. Norwegian agencies on Norwegian sites = primary use case.
+
+### Mar 12 2026 — Usage event tracking
+- **New module**: `tracking/usage_tracker.py` — fire-and-forget `log_usage_event()` helper
+- **Migration**: `migrations/006_usage_events.sql` — NOT yet run. Pal must run manually in Supabase SQL editor.
+- **Instrumented 7 call sites**:
+  - `aeo/recommender.py`: `arbeidspakke_generation` — tokens + cost from Anthropic response
+  - `crawler/ai_analyser.py`: `ai_analysis` — tokens from Perplexity response
+  - `app.py`: `citation_check` (per batch), `login`, `tool_switch`
+  - `crawler/crawler_ui.py`: `page_crawl` (per crawl run)
+  - `google_data/datasources_ui.py`: `gsc_import`, `ga_import`
+- All tracking is fire-and-forget (try/except, never raises). App works normally even if table doesn't exist.
+- Cost formula for Sonnet: `(input_tokens * 3 + output_tokens * 15) / 1_000_000`
+- **Blocker**: Run `migrations/006_usage_events.sql` in Supabase SQL editor before tracking works
 
 **Next**: Pal tests locally (structure, language, JSON-LD, rendering). Then Morten tests with real GSC/GA data — the quality gate.
 
