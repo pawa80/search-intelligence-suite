@@ -353,6 +353,15 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 12 2026
 
+### Mar 12 2026 — DISABLED: domain context + intent persistence (temporary)
+- **Reason**: Domain context caused project scoping instability (Scribbler project inaccessible, values followed user across projects). Intent persistence had same widget key scoping issue.
+- **What's disabled** (commit 834fda5):
+  - `app.py`: "Prosjektinnstillinger" expander commented out. `domain_context` set to `""` so Sonnet prompt skips it.
+  - `aeo/aeo_ui.py`: Intent pre-fill from DB commented out. Intent PATCH on Generate commented out. Text input still works as normal (user types, value passes to generation, nothing persists).
+- **What still works**: Page type system, usage tracking, language detection fix, crawler overview, arbeidspakke generation.
+- **To re-enable**: Search for `DISABLED:` comments in `app.py` and `aeo/aeo_ui.py`. Fix the Streamlit widget key scoping properly (include entity ID in key), then uncomment.
+- **DB columns still exist**: `domain_context` on `projects`, `intent` on `pages` — no schema change needed to re-enable.
+
 ### Mar 12 2026 — Widget scoping fix (domain context, intent, page type)
 - **Bug**: Domain context persisted across project switches. Intent and page type persisted across page switches.
 - **Root cause**: Streamlit widgets with fixed `key` params persist their values across reruns. When switching projects/pages, `st.text_area`/`st.selectbox` kept the old entity's value even though `value=` was updated.
