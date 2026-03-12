@@ -38,10 +38,10 @@ Pal + Morten collaboration.
 ### Tables (all RLS enabled)
 - `workspaces` (id, name, created_by, created_at)
 - `workspace_members` (workspace_id, user_id, role, joined_at)
-- `projects` (id, workspace_id, name, domain, created_at) — RLS via workspace membership
+- `projects` (id, workspace_id, name, domain, created_at, domain_context) — RLS via workspace membership. `domain_context` is universal brand info injected into all arbeidspakker.
 - `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
 - `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
-- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at) — UPSERT on (project_id, url). Written by crawler after crawl completes.
+- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at, page_type, intent) — UPSERT on (project_id, url). Written by crawler after crawl completes. `page_type` and `intent` set by AEO Agent UI.
 - `google_connections` (id, workspace_id, user_id, google_refresh_token, google_token_expiry, gsc_property, ga4_property_id, ga4_property_name, connected_at) — UNIQUE on (workspace_id, user_id). RLS via `user_id = auth.uid()`.
 - `gsc_data` (id, project_id, url, clicks, impressions, ctr, position, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, url, date_range_start). RLS via `user_owns_project()`.
 - `ga_data` (id, project_id, page_path, sessions, engaged_sessions, engagement_rate, avg_engagement_time, bounce_rate, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, page_path, date_range_start). RLS via `user_owns_project()`.
@@ -413,7 +413,25 @@ Last session: Mar 12 2026
 - "Ingen sider crawlet ennå" message when empty
 - Tracks `page_overview_loaded` usage event
 
-**Next**: Run migrations 006 + 007 in Supabase SQL editor. Test all three features: usage tracking, page types, persistent overview. Then Morten tests with real data.
+### Mar 12 2026 — Intent persistence + domain-level universal context
+- **Migration**: `migrations/008_intent_and_domain_context.sql` — adds `intent TEXT` to `pages`, `domain_context TEXT` to `projects`. NOT yet run.
+- **AEO Agent UI** (`aeo/aeo_ui.py`):
+  - Intent pre-fills from stored `intent` column on `pages` table
+  - Intent saved via PATCH to `pages` on Generate click (only if changed)
+  - `domain_context` passed from `st.session_state["domain_context"]` to `generate_recommendations()`
+  - `intent` added to `_load_crawled_pages` SELECT
+- **App sidebar** (`app.py`):
+  - "Prosjektinnstillinger" expander with domain context `text_area` + "Lagre" button
+  - PATCH support added to `_make_rest_call()`
+  - `domain_context` loaded with project data and stored in `st.session_state["domain_context"]`
+- **Recommender** (`aeo/recommender.py`):
+  - New `domain_context` param on `generate_recommendations()`
+  - Domain context section injected into system prompt between page type and AEO methodology
+  - Only injected if `domain_context` is non-empty
+  - Instructs AI to ground all rewrites in the brand's identity, services, and positioning
+- **Commit**: 75aa716, pushed, auto-deploying
+
+**Next**: Run migrations 006 + 007 + 008 in Supabase SQL editor. Test all features: usage tracking, page types, persistent overview, intent save, domain context. Then Morten tests with real data.
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 
