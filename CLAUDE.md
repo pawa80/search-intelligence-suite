@@ -353,6 +353,12 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 12 2026
 
+### Mar 12 2026 — PostgREST schema cache fix (intent + domain context not loading)
+- **Bug**: "Prosjektinnstillinger" sidebar missing, intent not pre-filling from DB
+- **Root cause**: PostgREST caches DB schema. Migrations 007/008 added columns (`page_type`, `intent`, `domain_context`) but PostgREST didn't know about them yet. SELECTing unknown columns returns 400 → `get_projects()` caught error, returned `[]` → entire sidebar broke. Same for `_load_crawled_pages()`.
+- **Fix** (commit bff58f8): Changed both queries to `SELECT *` instead of named columns. PostgREST returns whatever exists, `.get()` defaults handle missing fields.
+- **Lesson**: After running ALTER TABLE migrations, either reload PostgREST schema cache (Supabase Dashboard > Settings > API) or use `SELECT *` for queries that include newly-added columns.
+
 ### Mar 12 2026 — Language detection bugfix
 - **Bug**: English pages produced Norwegian arbeidspakker. Root cause: system prompt saturated with Norwegian template text biasing Sonnet.
 - **Fix** (commit 41e7d37):
