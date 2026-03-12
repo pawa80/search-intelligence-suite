@@ -429,7 +429,7 @@ Last session: Mar 12 2026
 - Tracks `page_overview_loaded` usage event
 
 ### Mar 12 2026 — Intent persistence + domain-level universal context
-- **Migration**: `migrations/008_intent_and_domain_context.sql` — adds `intent TEXT` to `pages`, `domain_context TEXT` to `projects`. NOT yet run.
+- **Migration**: `migrations/008_intent_and_domain_context.sql` — adds `intent TEXT` to `pages`, `domain_context TEXT` to `projects`. RUN ✓
 - **AEO Agent UI** (`aeo/aeo_ui.py`):
   - Intent pre-fills from stored `intent` column on `pages` table
   - Intent saved via PATCH to `pages` on Generate click (only if changed)
@@ -446,7 +446,7 @@ Last session: Mar 12 2026
   - Instructs AI to ground all rewrites in the brand's identity, services, and positioning
 - **Commit**: 75aa716, pushed, auto-deploying
 
-**Next**: Run migrations 006 + 007 + 008 in Supabase SQL editor. Test all features: usage tracking, page types, persistent overview, intent save, domain context. Then Morten tests with real data.
+**Next**: Run migrations 006 + 007 in Supabase SQL editor (008 done ✓). Test language fix on English page. Test all features: usage tracking, page types, persistent overview, intent save, domain context. Then Morten tests with real data.
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 
