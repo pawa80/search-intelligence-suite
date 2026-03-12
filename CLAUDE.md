@@ -109,8 +109,8 @@ Pal + Morten collaboration.
 - **M2-M4 + Matrise + Arbeidspakker Library all deployed**. Streamlit Cloud auto-deploys from master.
 - **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
-- **AEO Agent depends on OPENAI_API_KEY** — added to Streamlit Cloud secrets ✓
-- **Arbeidspakke prompt v2.0** (Mar 12): Rewrote to match Morten's gold standard. 6-section structure, full page rewrites, JSON-LD schema, language detection. Not yet deployed — needs testing. Safety tag `v2.0-working-2026-03-12` on pre-change state. See rolling handover for open questions (model choice, UI tweaks, intelligence panel trade-off).
+- **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis) — both in Streamlit Cloud secrets ✓
+- **Arbeidspakke v2.1** (Mar 12): Gold standard prompt + Claude Sonnet 4. Deployed. All PD questions resolved (see rolling handover). Safety tag `v2.0-working-2026-03-12` as rollback.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
@@ -261,8 +261,8 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Architecture
 - **Location**: `aeo/` package — `analyzer.py`, `recommender.py`, `intelligence_feed.py`, `context_builder.py`, `aeo_ui.py`
 - **Access**: Sidebar tool selector in `app.py` ("AEO Agent")
-- **Models**: OpenAI GPT-4o-mini (recommendations), page content extraction via BeautifulSoup
-- **Dependencies**: `openai`, `lxml` (with `html.parser` fallback)
+- **Models**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`) for arbeidspakke generation, OpenAI GPT-4o-mini for content analysis/intent extraction
+- **Dependencies**: `anthropic`, `openai`, `lxml` (with `html.parser` fallback)
 - **Origin**: Adapted from standalone AEO Audit Agent (PRCS008) into suite context
 
 ### What It Does
@@ -345,25 +345,36 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 12 2026
 
-### Mar 12 2026 — Arbeidspakke prompt rewrite (gold standard)
-- **Safety tag**: `v2.0-working-2026-03-12` on current master before changes
-- **Rewrote GPT system prompt** in `aeo/recommender.py` — complete overhaul to match Morten's gold standard arbeidspakke (Fyresign "Programvare for infoskjerm" example)
-- **Only file changed**: `aeo/recommender.py`. No pipeline, UI, context builder, or DB changes.
-- **Key prompt changes**:
-  1. Language detection — output matches page content language (Norwegian page = Norwegian arbeidspakke)
-  2. 6-section structure: AEO priorities (current vs suggested) → Full page rewrite (paste-ready) → FAQ rewrites (before/after) → Technical (JSON-LD FAQPage schema, H2 structure, dates) → SEO (meta title/desc, internal links, link audit) → Implementation checklist
-  3. Full rewrites only — no suggestions, no snippets. Every section is paste-ready for CMS.
-  4. JSON-LD FAQ schema is a required output — complete `<script>` block ready for `<head>`
-  5. GSC/GA data from context_block referenced in opening analysis paragraph
-- **Output format change**: GPT now returns markdown (not JSON). Returned in `summary` field of the dict — compatible with `_format_arbeidspakke()` without touching `aeo_ui.py`
-- **max_tokens**: 4000 → 16000 (full page rewrites need space)
-- **Content window**: 8000 → 12000 chars (better source material for rewrites)
-- **Not yet committed or pushed** — needs testing first
-- **Questions for Product Director**:
-  - GPT-4o-mini is still the model. Full page rewrites at this quality level may benefit from GPT-4o — should we test both and compare? Cost difference is ~10x.
-  - The `_format_arbeidspakke()` function in `aeo_ui.py` now adds a `## Summary` heading before the full markdown output. This works but is slightly redundant since the arbeidspakke already has its own structure. Worth a follow-up to either remove that heading or make it the page header? (Would require touching `aeo_ui.py`.)
-  - Intelligence checklist evaluation (v0.8 feature) is now simplified — items are still injected into the prompt but the output no longer includes the APPLIES/NOT_APPLICABLE/RESPECTED verdict array. The Intelligence Analysis panel in the UI will show empty. Acceptable trade-off for gold standard output, or should we preserve it as a collapsible appendix?
-  - The gold standard example was for a Norwegian page. Should we add a "force language" dropdown in the UI, or is auto-detection sufficient?
+### Mar 12 2026 — Arbeidspakke gold standard + Claude Sonnet 4 + date column
+- **Safety tag**: `v2.0-working-2026-03-12` on pre-change state
+- **3 commits pushed** (1dd3635, 2137644, f23ff12), auto-deploying to Streamlit Cloud
+
+**Prompt rewrite** (commit 1dd3635):
+- Rewrote system prompt in `aeo/recommender.py` to match Morten's gold standard (Fyresign example)
+- 6-section structure: AEO priorities → Full page rewrite → FAQ rewrites → Technical (JSON-LD) → SEO → Checklist
+- Language detection (Norwegian page = Norwegian output), full rewrites only, paste-ready for CMS
+- Removed redundant `## Summary` heading from `aeo_ui.py` — arbeidspakke has its own structure
+- Output format: markdown in `summary` field, empty arrays for legacy fields
+
+**Model swap** (commit 2137644):
+- GPT-4o-mini → Claude Sonnet 4 (`claude-sonnet-4-20250514`) via Anthropic SDK
+- Split prompt into system/user messages for better prompt following
+- Reads `ANTHROPIC_API_KEY` from st.secrets/env (added to Streamlit Cloud secrets)
+- Added `anthropic>=0.40.0` to requirements.txt. OpenAI kept (used by analyzer.py)
+- max_tokens: 16000, content window: 12000 chars
+- ~$0.20/generation — quality > cost for the product's core deliverable
+
+**Date column** (commit f23ff12):
+- Added "Siste arbeidspakke" column to AI Analysis results table in `crawler/crawler_ui.py`
+- Shows dd.mm.yyyy or "Aldri" — single DB query to `arbeidspakker`, deduplicated in Python
+
+**Product Director decisions (Mar 12)**:
+- Q1 Model: Claude Sonnet 4 — prompt gap was closing, but Sonnet's Norwegian + structured output is superior. $0.20/gen is irrelevant at current scale.
+- Q2 Summary heading: Fixed — removed.
+- Q3 Intelligence panel: Parked. Gold standard arbeidspakke is the deliverable. Verdicts were noise for target user (marketer executing work package).
+- Q4 Language: Auto-detection sufficient. Norwegian agencies on Norwegian sites = primary use case.
+
+**Next**: Pal tests locally (structure, language, JSON-LD, rendering). Then Morten tests with real GSC/GA data — the quality gate.
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 
