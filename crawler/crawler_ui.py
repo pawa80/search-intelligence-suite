@@ -429,6 +429,30 @@ def _load_existing_analyses(token: str, project_id: str) -> dict[str, dict]:
         return {}
 
 
+def _load_arbeidspakke_dates(token: str, project_id: str) -> dict[str, str]:
+    """Load most recent arbeidspakke date per page_id. Returns {page_id: 'dd.mm.yyyy'}."""
+    from app import db_request
+    try:
+        rows = db_request("GET", "arbeidspakker", token,
+                          params={"select": "page_id,generated_at",
+                                  "project_id": f"eq.{project_id}",
+                                  "order": "generated_at.desc"})
+        # Keep only the most recent per page_id
+        latest = {}
+        for r in rows:
+            pid = r.get("page_id")
+            if pid and pid not in latest:
+                raw = r.get("generated_at", "")
+                try:
+                    dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    latest[pid] = dt.strftime("%d.%m.%Y")
+                except (ValueError, AttributeError):
+                    latest[pid] = raw[:10] if raw else "—"
+        return latest
+    except Exception:
+        return {}
+
+
 def _show_ai_analysis(project_ctx: dict | None) -> None:
     """AI Analysis tab content."""
     if not project_ctx:
@@ -468,6 +492,7 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
         return
 
     analyses = _load_existing_analyses(token, project_id)
+    arbeidspakke_dates = _load_arbeidspakke_dates(token, project_id)
     analysed_ids = set(analyses.keys())
     page_ids = set(p["id"] for p in pages)
     unanalysed = [p for p in pages if p["id"] not in analysed_ids]
@@ -628,6 +653,7 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
                 "Content Score": _score_badge(a.get("content_quality_score")),
                 "Priority Action": a.get("priority_action", "—"),
                 "Last Analysed": (a.get("analysed_at") or "")[:10],
+                "Siste arbeidspakke": arbeidspakke_dates.get(page_id, "Aldri"),
             })
 
         # Sort by SEO score ascending (worst first)
