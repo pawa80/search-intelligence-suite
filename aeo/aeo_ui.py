@@ -83,10 +83,28 @@ def _db_post(token: str, table: str, body: dict) -> bool:
     return r.status_code < 400
 
 
+def _db_patch(token: str, table: str, params: dict, body: dict) -> bool:
+    """Direct PATCH to Supabase REST API. Auto-refreshes token on 401."""
+    url = f"{_get_secret('SUPABASE_URL')}/rest/v1/{table}"
+    headers = {
+        "apikey": _get_secret("SUPABASE_ANON_KEY"),
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+    r = httpx.patch(url, headers=headers, params=params, json=body, timeout=10.0)
+    if r.status_code == 401:
+        new_token = _refresh_jwt()
+        if new_token:
+            headers["Authorization"] = f"Bearer {new_token}"
+            r = httpx.patch(url, headers=headers, params=params, json=body, timeout=10.0)
+    return r.status_code < 400
+
+
 def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
     """Load all crawled pages for this project."""
     return _db_get(token, "pages", {
-        "select": "id,url,title,h1,status_code",
+        "select": "id,url,title,h1,status_code,page_type",
         "project_id": f"eq.{project_id}",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",
@@ -266,6 +284,43 @@ def show_aeo_agent(
     if not selected_page:
         return
 
+    # Step 1b: Page type selector
+    _PAGE_TYPES = [
+        "",
+        "Forside",
+        "Produktside",
+        "Blogginnlegg",
+        "Landingsside",
+        "FAQ-side",
+        "Om oss",
+        "Kategoriside",
+        "Kontaktside",
+    ]
+
+    # Pre-select from stored page_type if available
+    stored_type = selected_page.get("page_type") or ""
+    default_idx = _PAGE_TYPES.index(stored_type) if stored_type in _PAGE_TYPES else 0
+
+    selected_page_type = st.selectbox(
+        "Sidetype",
+        _PAGE_TYPES,
+        index=default_idx,
+        format_func=lambda x: "Velg sidetype..." if x == "" else x,
+        key="aeo_page_type_select",
+    )
+
+    # Persist page type to DB when changed
+    if selected_page.get("id") and selected_page_type != stored_type:
+        _db_patch(token, "pages",
+                  params={"id": f"eq.{selected_page['id']}"},
+                  body={"page_type": selected_page_type if selected_page_type else None})
+        # Track usage
+        try:
+            from tracking.usage_tracker import log_usage_event
+            log_usage_event("page_type_set", event_detail=selected_page_type, project_id=project_id)
+        except Exception:
+            pass
+
     # Intelligence panel
     st.divider()
     if selected_page.get("id"):
@@ -344,6 +399,7 @@ def show_aeo_agent(
                 selected_intents=selected_intents,
                 api_key=openai_key,
                 context_block=context_block,
+                page_type=selected_page_type,
             )
 
         # Format as markdown

@@ -117,7 +117,7 @@ class RecommendationResult:
     error: Optional[str] = None
 
 
-def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block=""):
+def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None):
     """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
     v2.1: Claude Sonnet 4 for superior Norwegian quality and structured output.
@@ -193,12 +193,33 @@ CRITICAL RULES:
 2. PRESERVE the page's distinctive voice in all rewrites. Do NOT flatten personality into corporate speak.
 """
 
+    # Build page type context
+    if page_type:
+        page_type_section = f"""
+## PAGE TYPE CONTEXT
+The page being optimised is a **{page_type}**. Adapt ALL recommendations to this page type:
+
+- **Forside (Homepage):** Focus on entity definition, brand positioning, navigation structure, and trust signals. Do NOT recommend FAQ sections unless the brand specifically uses FAQ on homepage. Prioritise semantic triples that define the brand entity. H2 structure should reflect core value propositions and service categories, not questions.
+- **Produktside (Product/Service page):** Focus on product-specific FAQ, feature-benefit structure, comparison signals, and purchase intent optimisation. JSON-LD should use Product or Service schema in addition to FAQ.
+- **Blogginnlegg (Blog post):** Focus on topical authority, question-based H2s for featured snippets, comprehensive answer structure, internal linking to related posts and service pages. FAQ schema is appropriate here.
+- **Landingsside (Landing page):** Focus on conversion-oriented structure, single clear CTA, benefit-driven headings, social proof signals. Minimal FAQ — only if it supports conversion.
+- **FAQ-side (FAQ page):** Full FAQ optimisation — comprehensive Q&A pairs, FAQ schema, question clustering by topic, internal links from answers to relevant service/product pages.
+- **Om oss (About page):** Focus on entity definition, team/founder bios as semantic triples, trust signals (awards, certifications, years in business), organisational schema markup.
+- **Kategoriside (Category/listing page):** Focus on category definition, subcategory structure, breadcrumb optimisation, aggregated product/service signals, ItemList schema.
+- **Kontaktside (Contact page):** Focus on LocalBusiness schema, NAP consistency, service area definition, minimal content optimisation — mainly technical.
+"""
+    else:
+        page_type_section = """
+## PAGE TYPE CONTEXT
+No page type specified. Analyse the content and infer the page type. State your inference in the opening paragraph.
+"""
+
     # --- Build system prompt (methodology + task instructions) ---
     system_prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
 
 ## CRITICAL LANGUAGE RULE
 Detect the language of the page content in the user message. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
-
+{page_type_section}
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}

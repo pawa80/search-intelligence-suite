@@ -390,7 +390,22 @@ Last session: Mar 12 2026
 - Cost formula for Sonnet: `(input_tokens * 3 + output_tokens * 15) / 1_000_000`
 - **Blocker**: Run `migrations/006_usage_events.sql` in Supabase SQL editor before tracking works
 
-**Next**: Pal tests locally (structure, language, JSON-LD, rendering). Then Morten tests with real GSC/GA data — the quality gate.
+### Mar 12 2026 — Page type system for AEO Agent
+- **Migration**: `migrations/007_page_type.sql` — adds `page_type TEXT` column to `pages`. NOT yet run.
+- **AEO Agent UI** (`aeo/aeo_ui.py`):
+  - "Sidetype" dropdown between page selector and intent input
+  - 8 page types: Forside, Produktside, Blogginnlegg, Landingsside, FAQ-side, Om oss, Kategoriside, Kontaktside
+  - Pre-selects from stored `page_type` on `pages` table
+  - Persists selection via PATCH to `pages` table (new `_db_patch` helper)
+  - `page_type` added to `_load_crawled_pages` SELECT
+  - Tracks `page_type_set` usage event
+- **Recommender** (`aeo/recommender.py`):
+  - New `page_type` param on `generate_recommendations()`
+  - Page type context injected into system prompt between language rule and AEO methodology
+  - Full guidance per type (e.g. homepage = no FAQ, blog = question-based H2s)
+  - If no type set, AI infers from content and states inference in opening paragraph
+
+**Next**: Run migration 007 in Supabase SQL editor. Test: select "Forside" → generate → confirm no FAQ-heavy advice. Then Morten tests with real data.
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 
