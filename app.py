@@ -519,6 +519,7 @@ def show_dashboard():
             st.session_state["domain_context"] = selected_project.get("domain_context") or ""
 
         if projects and st.session_state.selected_project_id:
+            _pid = st.session_state.selected_project_id
             with st.expander("Prosjektinnstillinger"):
                 _dc_val = st.session_state.get("domain_context", "")
                 _new_dc = st.text_area(
@@ -526,9 +527,9 @@ def show_dashboard():
                     value=_dc_val,
                     height=120,
                     help="Beskriv merkevaren, målgruppe, tone og posisjonering. Denne konteksten brukes i alle arbeidspakker for dette prosjektet.",
-                    key="domain_context_input",
+                    key=f"domain_context_input_{_pid}",
                 )
-                if st.button("Lagre", key="btn_save_domain_context"):
+                if st.button("Lagre", key=f"btn_save_domain_context_{_pid}"):
                     try:
                         db_request("PATCH", "projects", token,
                                    params={"id": f"eq.{st.session_state.selected_project_id}"},

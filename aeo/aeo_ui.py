@@ -284,6 +284,8 @@ def show_aeo_agent(
     if not selected_page:
         return
 
+    _page_key = selected_page.get("id") or "manual"
+
     # Step 1b: Page type selector
     _PAGE_TYPES = [
         "",
@@ -306,7 +308,7 @@ def show_aeo_agent(
         _PAGE_TYPES,
         index=default_idx,
         format_func=lambda x: "Velg sidetype..." if x == "" else x,
-        key="aeo_page_type_select",
+        key=f"aeo_page_type_select_{_page_key}",
     )
 
     # Persist page type to DB when changed
@@ -367,7 +369,7 @@ def show_aeo_agent(
         "What is this page meant to achieve?",
         value=stored_intent,
         placeholder='e.g. "Rank for \'best running shoes Norway\' and be cited by AI for product comparisons"',
-        key="aeo_intent_input",
+        key=f"aeo_intent_input_{_page_key}",
     )
 
     # Step 3: Generate
