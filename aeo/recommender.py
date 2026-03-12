@@ -117,7 +117,7 @@ class RecommendationResult:
     error: Optional[str] = None
 
 
-def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None):
+def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None):
     """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
     v2.1: Claude Sonnet 4 for superior Norwegian quality and structured output.
@@ -214,12 +214,23 @@ The page being optimised is a **{page_type}**. Adapt ALL recommendations to this
 No page type specified. Analyse the content and infer the page type. State your inference in the opening paragraph.
 """
 
+    # Build domain context section (only if provided)
+    domain_context_section = ""
+    if domain_context and domain_context.strip():
+        domain_context_section = f"""
+## DOMAIN CONTEXT
+The following is universal context about this domain/brand. Use this information to ground all recommendations, rewrites, and FAQs in the brand's actual identity, services, and positioning. This context applies to EVERY page on this domain.
+
+{domain_context.strip()}
+"""
+
     # --- Build system prompt (methodology + task instructions) ---
     system_prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
 
 ## CRITICAL LANGUAGE RULE
 Detect the language of the page content in the user message. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
 {page_type_section}
+{domain_context_section}
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}

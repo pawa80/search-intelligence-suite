@@ -104,7 +104,7 @@ def _db_patch(token: str, table: str, params: dict, body: dict) -> bool:
 def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
     """Load all crawled pages for this project."""
     return _db_get(token, "pages", {
-        "select": "id,url,title,h1,status_code,page_type",
+        "select": "id,url,title,h1,status_code,page_type,intent",
         "project_id": f"eq.{project_id}",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",
@@ -359,11 +359,13 @@ def show_aeo_agent(
         context = {"crawl_analysis": None, "gsc": None, "ga": None}
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
 
-    # Step 2: Intent
+    # Step 2: Intent (pre-filled from stored value)
     st.divider()
     st.subheader("Step 2: Set page intent")
+    stored_intent = selected_page.get("intent") or ""
     intent = st.text_input(
         "What is this page meant to achieve?",
+        value=stored_intent,
         placeholder='e.g. "Rank for \'best running shoes Norway\' and be cited by AI for product comparisons"',
         key="aeo_intent_input",
     )
@@ -375,6 +377,17 @@ def show_aeo_agent(
     if st.button("Generate Arbeidspakke", type="primary", key="btn_generate_arbeidspakke",
                   disabled=not selected_page.get("url")):
         url = selected_page["url"]
+
+        # Save intent to page if changed
+        if selected_page.get("id") and intent != stored_intent:
+            _db_patch(token, "pages",
+                      params={"id": f"eq.{selected_page['id']}"},
+                      body={"intent": intent if intent else None})
+            try:
+                from tracking.usage_tracker import log_usage_event
+                log_usage_event("intent_saved", event_detail="page intent set", project_id=project_id)
+            except Exception:
+                pass
 
         with st.spinner("Fetching and analysing page content..."):
             analysis = analyze_url(url, openai_key)
@@ -400,6 +413,7 @@ def show_aeo_agent(
                 api_key=openai_key,
                 context_block=context_block,
                 page_type=selected_page_type,
+                domain_context=st.session_state.get("domain_context"),
             )
 
         # Format as markdown

@@ -74,6 +74,8 @@ def _make_rest_call(method, url, headers, params=None, body=None):
         return httpx.get(url, headers=headers, params=params, timeout=30.0)
     elif method == "POST":
         return httpx.post(url, headers=headers, json=body, params=params, timeout=30.0)
+    elif method == "PATCH":
+        return httpx.patch(url, headers=headers, json=body, params=params, timeout=30.0)
     elif method == "DELETE":
         return httpx.delete(url, headers=headers, params=params, timeout=30.0)
     else:
@@ -222,7 +224,7 @@ def logout():
 def get_projects(access_token, workspace_id):
     try:
         return db_request("GET", "projects", access_token,
-            params={"select": "id,name,domain,country,language,created_at",
+            params={"select": "id,name,domain,country,language,domain_context,created_at",
                      "workspace_id": f"eq.{workspace_id}",
                      "order": "created_at.asc"})
     except Exception as e:
@@ -512,6 +514,36 @@ def show_dashboard():
             selected_name = st.selectbox("Project", project_names, index=current_idx)
             selected_project = next(p for p in projects if p["name"] == selected_name)
             st.session_state.selected_project_id = selected_project["id"]
+
+            # Store domain_context in session state for AEO Agent
+            st.session_state["domain_context"] = selected_project.get("domain_context") or ""
+
+        if projects and st.session_state.selected_project_id:
+            with st.expander("Prosjektinnstillinger"):
+                _dc_val = st.session_state.get("domain_context", "")
+                _new_dc = st.text_area(
+                    "Domenekontekst",
+                    value=_dc_val,
+                    height=120,
+                    help="Beskriv merkevaren, målgruppe, tone og posisjonering. Denne konteksten brukes i alle arbeidspakker for dette prosjektet.",
+                    key="domain_context_input",
+                )
+                if st.button("Lagre", key="btn_save_domain_context"):
+                    try:
+                        db_request("PATCH", "projects", token,
+                                   params={"id": f"eq.{st.session_state.selected_project_id}"},
+                                   body={"domain_context": _new_dc if _new_dc else None})
+                        st.session_state["domain_context"] = _new_dc
+                        st.success("Domenekontekst lagret.")
+                        try:
+                            from tracking.usage_tracker import log_usage_event
+                            log_usage_event("domain_context_set",
+                                            event_detail=f"{len(_new_dc)} chars",
+                                            project_id=st.session_state.selected_project_id)
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        st.error(f"Feil ved lagring: {e}")
 
         with st.expander("Create New Project"):
             with st.form("create_project_form"):
