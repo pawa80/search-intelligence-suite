@@ -3,17 +3,26 @@ from __future__ import annotations
 """
 AEO Audit Agent - Recommendations Engine
 
-Uses OpenAI GPT-4o-mini to generate complete arbeidspakker (work packages)
+Uses Anthropic Claude Sonnet 4 to generate complete arbeidspakker (work packages)
 with full page rewrites, FAQ replacements, JSON-LD schema, and SEO improvements.
 Output language matches the page content language.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Optional
 
-from openai import OpenAI
+from anthropic import Anthropic
 import requests
+
+try:
+    import streamlit as st
+    def _get_anthropic_key():
+        return st.secrets.get("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY"))
+except Exception:
+    def _get_anthropic_key():
+        return os.getenv("ANTHROPIC_API_KEY")
 
 import intelligence_feed
 
@@ -111,11 +120,22 @@ class RecommendationResult:
 def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block=""):
     """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
-    v2.0: Outputs a complete 6-section arbeidspakke in the language of the page content.
+    v2.1: Claude Sonnet 4 for superior Norwegian quality and structured output.
+    Outputs a complete 6-section arbeidspakke in the language of the page content.
     Full rewrites — no snippets, no suggestions. Paste-ready for CMS.
     """
 
-    client = OpenAI(api_key=api_key)
+    anthropic_key = _get_anthropic_key()
+    if not anthropic_key:
+        return {
+            "summary": "ANTHROPIC_API_KEY not configured. Add it to .env or Streamlit Cloud secrets.",
+            "intelligence_applied": [],
+            "critical_issues": [],
+            "action_plan": [],
+            "quick_wins": []
+        }
+
+    client = Anthropic(api_key=anthropic_key)
 
     from urllib.parse import urlparse
 
@@ -173,41 +193,21 @@ CRITICAL RULES:
 2. PRESERVE the page's distinctive voice in all rewrites. Do NOT flatten personality into corporate speak.
 """
 
-    prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
+    # --- Build system prompt (methodology + task instructions) ---
+    system_prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
 
 ## CRITICAL LANGUAGE RULE
-Detect the language of the page content below. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
+Detect the language of the page content in the user message. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
 
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}
-{context_block}
-## PAGE BEING ANALYZED
-
-**Title:** {title}
-
-**Direct Answer Score:** {direct_answer_score}/100
-
-**First Paragraph:**
-{first_paragraph}
-
-**Page intent / what this page should achieve:**
-{chr(10).join(f'- {intent}' for intent in selected_intents) if selected_intents else 'Not specified'}
-
-**Citation Check Results:**
-- Citation Rate: {citation_rate:.0f}%
-- Cited Queries: {', '.join(cited_queries) if cited_queries else 'None'}
-- Uncited Queries: {', '.join(uncited_queries) if uncited_queries else 'None'}
-{competitor_section}
-
-**Full Page Content:**
-{content_for_analysis}
 
 ## YOUR TASK — PRODUCE A COMPLETE ARBEIDSPAKKE
 
 Write the arbeidspakke as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
 
-Start with a "Hovedfunn" / "Key findings" paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context above, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
+Start with a "Hovedfunn" / "Key findings" paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
 
 Then produce EXACTLY these 6 sections:
 
@@ -306,20 +306,42 @@ Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
 2. PRESERVE THE PAGE'S VOICE. Read the tone of the existing content and match it. If it's conversational, stay conversational. If it's formal, stay formal.
 3. BE SPECIFIC. Reference actual content from the page. Quote real text. Use real URLs found in the content for internal links.
 4. The JSON-LD in Section 4 must be syntactically valid and contain the EXACT question/answer text from Section 3.
-5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the arbeidspakke.
-"""
+5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the arbeidspakke."""
+
+    # --- Build user message (page-specific data) ---
+    user_message = f"""{context_block}
+## PAGE BEING ANALYZED
+
+**Title:** {title}
+
+**Direct Answer Score:** {direct_answer_score}/100
+
+**First Paragraph:**
+{first_paragraph}
+
+**Page intent / what this page should achieve:**
+{chr(10).join(f'- {intent}' for intent in selected_intents) if selected_intents else 'Not specified'}
+
+**Citation Check Results:**
+- Citation Rate: {citation_rate:.0f}%
+- Cited Queries: {', '.join(cited_queries) if cited_queries else 'None'}
+- Uncited Queries: {', '.join(uncited_queries) if uncited_queries else 'None'}
+{competitor_section}
+
+**Full Page Content:**
+{content_for_analysis}"""
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=16000,
-            temperature=0.3
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
         )
 
-        result_text = response.choices[0].message.content.strip()
+        result_text = message.content[0].text.strip()
 
-        # GPT returns markdown directly — wrap in dict for compatibility with
+        # Claude returns markdown directly — wrap in dict for compatibility with
         # _format_arbeidspakke() which reads recs.get('summary')
         return {
             "summary": result_text,
