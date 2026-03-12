@@ -104,7 +104,7 @@ def _db_patch(token: str, table: str, params: dict, body: dict) -> bool:
 def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
     """Load all crawled pages for this project."""
     return _db_get(token, "pages", {
-        "select": "id,url,title,h1,status_code,page_type,intent",
+        "select": "*",
         "project_id": f"eq.{project_id}",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",

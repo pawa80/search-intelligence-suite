@@ -224,7 +224,7 @@ def logout():
 def get_projects(access_token, workspace_id):
     try:
         return db_request("GET", "projects", access_token,
-            params={"select": "id,name,domain,country,language,domain_context,created_at",
+            params={"select": "*",
                      "workspace_id": f"eq.{workspace_id}",
                      "order": "created_at.asc"})
     except Exception as e:
