@@ -405,7 +405,15 @@ Last session: Mar 12 2026
   - Full guidance per type (e.g. homepage = no FAQ, blog = question-based H2s)
   - If no type set, AI infers from content and states inference in opening paragraph
 
-**Next**: Run migration 007 in Supabase SQL editor. Test: select "Forside" → generate → confirm no FAQ-heavy advice. Then Morten tests with real data.
+### Mar 12 2026 — Persistent crawler page overview
+- Added page overview section to Web Crawler (`crawler/crawler_ui.py`)
+- Appears above crawl tabs when project is selected, loads from `pages` + `arbeidspakker` tables
+- Collapsible expander: "Crawlede sider ({count})" with summary line "{X} sider crawlet | Sist crawl: {date}"
+- Columns: URL, Tittel, Status, Sidetype, Sist crawlet, Siste arbeidspakke
+- "Ingen sider crawlet ennå" message when empty
+- Tracks `page_overview_loaded` usage event
+
+**Next**: Run migrations 006 + 007 in Supabase SQL editor. Test all three features: usage tracking, page types, persistent overview. Then Morten tests with real data.
 
 ### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
 

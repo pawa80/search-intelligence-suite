@@ -100,6 +100,78 @@ def _get_domain_from_url(url: str) -> str:
         return "unknown"
 
 
+def _load_page_overview(token: str, project_id: str) -> list[dict]:
+    """Load all crawled pages for the persistent overview table."""
+    from app import db_request
+    try:
+        return db_request("GET", "pages", token,
+                          params={"select": "id,url,title,status_code,page_type,last_crawled_at",
+                                  "project_id": f"eq.{project_id}",
+                                  "last_crawled_at": "not.is.null",
+                                  "order": "url.asc"})
+    except Exception:
+        return []
+
+
+def _show_page_overview(project_ctx: dict) -> None:
+    """Show persistent page overview above the crawl tabs."""
+    token = st.session_state.get("access_token")
+    if not token:
+        return
+
+    project_id = project_ctx["id"]
+    pages = _load_page_overview(token, project_id)
+
+    if not pages:
+        st.caption("Ingen sider crawlet ennå. Start en crawl nedenfor.")
+        return
+
+    # Track usage
+    try:
+        from tracking.usage_tracker import log_usage_event
+        log_usage_event("page_overview_loaded", event_detail=f"{len(pages)} pages", project_id=project_id)
+    except Exception:
+        pass
+
+    # Load arbeidspakke dates
+    ap_dates = _load_arbeidspakke_dates(token, project_id)
+
+    # Find most recent crawl date
+    last_crawl = ""
+    for p in pages:
+        raw = p.get("last_crawled_at", "")
+        if raw and raw > last_crawl:
+            last_crawl = raw
+    try:
+        last_crawl_fmt = datetime.fromisoformat(last_crawl.replace("Z", "+00:00")).strftime("%d.%m.%Y")
+    except (ValueError, AttributeError):
+        last_crawl_fmt = last_crawl[:10] if last_crawl else "—"
+
+    with st.expander(f"Crawlede sider ({len(pages)})", expanded=True):
+        st.caption(f"{len(pages)} sider crawlet | Sist crawl: {last_crawl_fmt}")
+
+        table_rows = []
+        for p in pages:
+            # Format last_crawled_at
+            raw_crawl = p.get("last_crawled_at", "")
+            try:
+                crawl_fmt = datetime.fromisoformat(raw_crawl.replace("Z", "+00:00")).strftime("%d.%m.%Y")
+            except (ValueError, AttributeError):
+                crawl_fmt = raw_crawl[:10] if raw_crawl else "—"
+
+            url = p.get("url", "")
+            table_rows.append({
+                "URL": url[:60] + ("..." if len(url) > 60 else ""),
+                "Tittel": (p.get("title") or "—")[:50],
+                "Status": p.get("status_code", "—"),
+                "Sidetype": p.get("page_type") or "—",
+                "Sist crawlet": crawl_fmt,
+                "Siste arbeidspakke": ap_dates.get(p.get("id"), "Aldri"),
+            })
+
+        st.dataframe(table_rows, use_container_width=True, hide_index=True)
+
+
 def show_crawler(project_ctx: dict | None = None):
     """Main entry point for the crawler UI."""
     st.title("Web Crawler")
@@ -113,6 +185,10 @@ def show_crawler(project_ctx: dict | None = None):
         st.warning("No project selected. Results won't be saved.")
         st.session_state["crawler_project_id"] = None
         st.session_state["crawler_project_domain"] = ""
+
+    # Persistent page overview (loads from Supabase)
+    if project_ctx:
+        _show_page_overview(project_ctx)
 
     tab_crawl, tab_sitemap, tab_ai = st.tabs(["Web Crawl", "Sitemap Check", "AI Analysis"])
 
