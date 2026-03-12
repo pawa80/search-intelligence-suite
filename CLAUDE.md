@@ -92,10 +92,13 @@ Pal + Morten collaboration.
 - **AI Analysis (M3)**: Per-page AI assessment (SEO, AEO, content quality). Tab inside Web Crawler tool. See AI Analysis section below.
 - **AEO Agent (M4)**: Integrated AEO audit with matrix context from suite data. Sidebar tool. See AEO Agent section below.
 - **Matrise**: Prioritisation view — computed from all modules, ranks pages by priority score. Sidebar tool. See Matrise section below.
+- **Arbeidspakker Library**: Central view of all work packages across a project. Sidebar tool. See Arbeidspakker section below.
+- **AI Analysis CSV exports**: Summary table + per-issue detail downloadable as CSV from AI Analysis tab.
 
 ## Next Up
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
-- **AEO Agent E2E test**: Generate arbeidspakke on a real crawled page, verify it saves to `arbeidspakker` table and displays correctly
+- **AEO Guide research**: Pal commissioning AEO research to improve `aeo/intelligence/aeo_guide.md`. Potential gaps: multi-modal content signals, freshness/recency weighting, updated stats.
+- **Superadmin AEO Guide editor** (parked): Superadmin role on workspace_members, admin panel to edit AEO guide in-app, store guide in Supabase instead of flat file.
 - **Section 6**: Data import (historical GEO Tracker data migration)
 - **Section 7**: Mobile optimisation
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
@@ -103,13 +106,16 @@ Pal + Morten collaboration.
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
 
 ## Notes for Product Director
-- **M2-M4 + Matrise all deployed**. Streamlit Cloud auto-deploys from master.
+- **M2-M4 + Matrise + Arbeidspakker Library all deployed**. Streamlit Cloud auto-deploys from master.
+- **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
 - **AEO Agent depends on OPENAI_API_KEY** — added to Streamlit Cloud secrets ✓
+- **Arbeidspakke prompt v2.0** (Mar 12): Rewrote to match Morten's gold standard. 6-section structure, full page rewrites, JSON-LD schema, language detection. Not yet deployed — needs testing. Safety tag `v2.0-working-2026-03-12` on pre-change state. See rolling handover for open questions (model choice, UI tweaks, intelligence panel trade-off).
+- **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
 - **`requests` package**: Used by `aeo/analyzer.py` but not in requirements.txt. Works because it's a transitive dep of streamlit. Could add explicitly if it ever breaks on Cloud.
-- **Matrise Generate button**: Stub only — sets `matrise_generate_url` in session state and switches to AEO Agent, but AEO Agent doesn't yet read that value to pre-select the page. Cross-tool nav polish is next.
+- **Matrise→AEO Agent wiring**: Generate button sets `matrise_generate_url` in session state and switches to AEO Agent. AEO Agent pre-selects the page from that value.
 
 ## RLS Debugging Pattern (for future reference)
 When adding new tables that reference `projects` or `workspaces`:
@@ -315,12 +321,61 @@ When adding new tables that reference `projects` or `workspaces`:
 - Expandable detail per row: priority action, GSC/GA date ranges, last crawled
 
 ### Generate Button Wiring
-- Sets `st.session_state["matrise_generate_url"]` and `current_tool` to "AEO Agent", then reruns
-- `current_tool` is NOT widget-bound (no `key=` on selectbox) — so it can be set programmatically
-- AEO Agent does not yet consume `matrise_generate_url` to pre-select the page — wiring needed
+- Sets `st.session_state["matrise_generate_url"]` and `_tool_override` to "AEO Agent", then reruns
+- `_tool_override` is consumed before selectbox renders — sets `active_tool` programmatically
+- AEO Agent pre-selects the page from `matrise_generate_url`
+
+## Arbeidspakker Library Module
+
+### Architecture
+- **Location**: `arbeidspakker/` package — `arbeidspakker_ui.py`
+- **Access**: Sidebar tool selector in `app.py` ("Arbeidspakker")
+- **No database table** — reads existing `arbeidspakker` table
+- **No new dependencies**
+- **Self-contained**: Own `_get_secret`, `_refresh_jwt`, `_db_get` helpers (same pattern as matrise)
+
+### What It Does
+- Fetches all arbeidspakker for a project, sorted newest-first
+- Summary metrics: total count, unique pages, latest generated date
+- Each item shows: URL, intent, generated date
+- Expandable full markdown content per arbeidspakke
+- Download `.md` button per item
+- "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 5 2026 (M2 + M3 + M4 + Matrise build)
+Last session: Mar 12 2026
+
+### Mar 12 2026 — Arbeidspakke prompt rewrite (gold standard)
+- **Safety tag**: `v2.0-working-2026-03-12` on current master before changes
+- **Rewrote GPT system prompt** in `aeo/recommender.py` — complete overhaul to match Morten's gold standard arbeidspakke (Fyresign "Programvare for infoskjerm" example)
+- **Only file changed**: `aeo/recommender.py`. No pipeline, UI, context builder, or DB changes.
+- **Key prompt changes**:
+  1. Language detection — output matches page content language (Norwegian page = Norwegian arbeidspakke)
+  2. 6-section structure: AEO priorities (current vs suggested) → Full page rewrite (paste-ready) → FAQ rewrites (before/after) → Technical (JSON-LD FAQPage schema, H2 structure, dates) → SEO (meta title/desc, internal links, link audit) → Implementation checklist
+  3. Full rewrites only — no suggestions, no snippets. Every section is paste-ready for CMS.
+  4. JSON-LD FAQ schema is a required output — complete `<script>` block ready for `<head>`
+  5. GSC/GA data from context_block referenced in opening analysis paragraph
+- **Output format change**: GPT now returns markdown (not JSON). Returned in `summary` field of the dict — compatible with `_format_arbeidspakke()` without touching `aeo_ui.py`
+- **max_tokens**: 4000 → 16000 (full page rewrites need space)
+- **Content window**: 8000 → 12000 chars (better source material for rewrites)
+- **Not yet committed or pushed** — needs testing first
+- **Questions for Product Director**:
+  - GPT-4o-mini is still the model. Full page rewrites at this quality level may benefit from GPT-4o — should we test both and compare? Cost difference is ~10x.
+  - The `_format_arbeidspakke()` function in `aeo_ui.py` now adds a `## Summary` heading before the full markdown output. This works but is slightly redundant since the arbeidspakke already has its own structure. Worth a follow-up to either remove that heading or make it the page header? (Would require touching `aeo_ui.py`.)
+  - Intelligence checklist evaluation (v0.8 feature) is now simplified — items are still injected into the prompt but the output no longer includes the APPLIES/NOT_APPLICABLE/RESPECTED verdict array. The Intelligence Analysis panel in the UI will show empty. Acceptable trade-off for gold standard output, or should we preserve it as a collapsible appendix?
+  - The gold standard example was for a Norwegian page. Should we add a "force language" dropdown in the UI, or is auto-detection sufficient?
+
+### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
+
+### Mar 5 2026 — Arbeidspakker Library + AI Analysis CSV + Bugfix
+- New module `arbeidspakker/arbeidspakker_ui.py` — central library of all work packages per project
+- Added "Arbeidspakker" to sidebar tool selector (6 tools total)
+- AI Analysis: added CSV export buttons (summary table + issues detail)
+- Fixed `any()` TypeError in AI Analysis summary — was passing 3 args instead of a tuple
+- Commits: 424deaa (library), ec01a6e (bugfix), 399f865 (CSV exports) — all pushed, auto-deployed
+- **Morten was testing live** during session — bugfix was urgent
+- **AEO Guide review**: Guide at `aeo/intelligence/aeo_guide.md` is solid for AI consumption. Identified gaps: multi-modal content signals, freshness/recency weighting, updated 2026 stats. Pal commissioning research.
+- **Superadmin concept** (parked): Future — store AEO guide in Supabase, superadmin role on workspace_members, in-app editor panel
 
 ### Mar 5 2026 — Matrise: Prioritisation View
 - New module `matrise/matrise_ui.py` — computed view, no new Supabase table

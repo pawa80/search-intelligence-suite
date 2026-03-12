@@ -144,8 +144,8 @@ def _format_arbeidspakke(recs: dict, context_block: str, url: str = "",
 
     lines.append(context_block)
 
-    # Summary
-    lines.append(f"## Summary\n{recs.get('summary', '—')}\n")
+    # Arbeidspakke content (full markdown from GPT)
+    lines.append(f"{recs.get('summary', '—')}\n")
 
     # Critical Issues
     issues = recs.get("critical_issues", [])

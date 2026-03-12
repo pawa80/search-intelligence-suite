@@ -3,8 +3,9 @@ from __future__ import annotations
 """
 AEO Audit Agent - Recommendations Engine
 
-Uses OpenAI GPT-4o-mini to generate actionable recommendations for improving
-a page's chances of being cited by AI search engines.
+Uses OpenAI GPT-4o-mini to generate complete arbeidspakker (work packages)
+with full page rewrites, FAQ replacements, JSON-LD schema, and SEO improvements.
+Output language matches the page content language.
 """
 
 import json
@@ -96,14 +97,6 @@ AI parses content as subject-predicate-object relationships.
 4. **Wall of text** - No structure, hard to extract quotes
 5. **Outdated content** - No date signals, stale information
 6. **Thin content** - Under 500 words, lacks depth
-
-## OUTPUT FORMAT
-
-When analyzing a page, provide:
-1. **Summary:** 2-3 sentence AEO assessment
-2. **Critical Issues:** Urgent problems affecting citation probability
-3. **Action Plan:** Prioritized fixes with before/after examples
-4. **Quick Wins:** Easy changes with immediate impact
 """
 
 
@@ -116,11 +109,10 @@ class RecommendationResult:
 
 
 def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block=""):
-    """Generate intelligence-first AEO recommendations with structured output.
+    """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
-    v0.8: Intelligence items are an explicit evaluation checklist — each one
-    gets a verdict (APPLIES/NOT_APPLICABLE/RESPECTED). Recommendations must
-    cite their intelligence source.
+    v2.0: Outputs a complete 6-section arbeidspakke in the language of the page content.
+    Full rewrites — no snippets, no suggestions. Paste-ready for CMS.
     """
 
     client = OpenAI(api_key=api_key)
@@ -153,8 +145,8 @@ def generate_recommendations(title, full_content, first_paragraph, direct_answer
     if competitor_lines:
         competitor_section = "\n**Top Competing Sources (by domain):**\n" + "\n".join(competitor_lines)
 
-    # Truncate full_content to prevent token overflow (keep first 8000 chars)
-    content_for_analysis = full_content[:8000] if full_content else ""
+    # Truncate full_content to prevent token overflow (keep first 12000 chars for better rewrites)
+    content_for_analysis = full_content[:12000] if full_content else ""
 
     # Load AEO Guide: prefer Notion-synced file, fall back to hardcoded constant
     aeo_guide_content = intelligence_feed.get_aeo_guide() or AEO_GUIDE
@@ -170,32 +162,27 @@ def generate_recommendations(title, full_content, first_paragraph, direct_answer
     if intelligence_checklist:
         intelligence_section = f"""
 
-## INTELLIGENCE EVALUATION CHECKLIST ({feed_weeks} weeks of curated data, updated {feed_date})
+## INTELLIGENCE FEED ({feed_weeks} weeks of curated data, updated {feed_date})
 
-You MUST evaluate EVERY intelligence item below against the page. For each item, determine:
-- APPLIES: This intelligence is relevant and the page needs changes based on it
-- NOT_APPLICABLE: This intelligence doesn't apply to this page (explain briefly why)
-- RESPECTED: For counter-signals only — confirms you are NOT making this mistake
+Use these intelligence items to inform your recommendations. Prioritise items marked as trend_alert or counter_signal.
 
 {intelligence_checklist}
 
 CRITICAL RULES:
-1. You MUST include ALL intelligence items in your "intelligence_applied" output array with a verdict for each.
-2. Every action_plan item MUST have an "intelligence_source" field citing which intelligence item or AEO principle drives it.
-3. If a counter-signal says "DO NOT recommend X", check your recommendations — if any recommend X, remove them and replace with the alternative.
-4. PRESERVE the page's distinctive voice in all suggested rewrites. Do NOT flatten personality into corporate speak.
+1. If a counter-signal says "DO NOT recommend X", do NOT include X in your output.
+2. PRESERVE the page's distinctive voice in all rewrites. Do NOT flatten personality into corporate speak.
 """
 
-    prompt = f"""You are an AEO (Answer Engine Optimization) expert. You have TWO sources of knowledge:
-1. Foundational AEO methodology (timeless principles)
-2. A live intelligence feed from {feed_weeks} weeks of curated AI search industry analysis (current trends)
+    prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
 
-Your recommendations MUST be driven by specific intelligence items, not generic best practices.
+## CRITICAL LANGUAGE RULE
+Detect the language of the page content below. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
 
-## AEO METHODOLOGY REFERENCE (Foundational)
+## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}
-{context_block}## PAGE BEING ANALYZED
+{context_block}
+## PAGE BEING ANALYZED
 
 **Title:** {title}
 
@@ -204,8 +191,8 @@ Your recommendations MUST be driven by specific intelligence items, not generic 
 **First Paragraph:**
 {first_paragraph}
 
-**User Intents Being Targeted:**
-{chr(10).join(f'- {intent}' for intent in selected_intents) if selected_intents else 'None specified'}
+**Page intent / what this page should achieve:**
+{chr(10).join(f'- {intent}' for intent in selected_intents) if selected_intents else 'Not specified'}
 
 **Citation Check Results:**
 - Citation Rate: {citation_rate:.0f}%
@@ -216,90 +203,135 @@ Your recommendations MUST be driven by specific intelligence items, not generic 
 **Full Page Content:**
 {content_for_analysis}
 
-## YOUR TASK
+## YOUR TASK — PRODUCE A COMPLETE ARBEIDSPAKKE
 
-1. First, evaluate EVERY intelligence item against this page (see checklist above).
-2. Then, generate recommendations that are DRIVEN BY the intelligence evaluation.
-3. Each recommendation must cite its intelligence source.
+Write the arbeidspakke as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
 
-IMPORTANT: Each critical issue and action plan item MUST reference which specific user intent it affects.
-Use format: 'For intent "[intent name]": [issue description]'
+Start with a "Hovedfunn" / "Key findings" paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context above, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
 
-Respond ONLY with valid JSON in this exact format:
-{{
-    "summary": "2-3 sentence assessment referencing specific intelligence findings",
-    "intelligence_applied": [
-        {{
-            "item": "Short name of the intelligence item",
-            "type": "trend_alert|evolving_pattern|counter_signal|citation_pattern",
-            "verdict": "APPLIES|NOT_APPLICABLE|RESPECTED",
-            "impact": "How this intelligence item specifically affects this page (1-2 sentences)"
-        }}
-    ],
-    "critical_issues": ["For intent '[specific intent]': issue description driven by intelligence finding"],
-    "action_plan": [
-        {{
-            "priority": 1,
-            "action": "Specific action to take",
-            "reason": "Why this matters — referencing the intelligence source",
-            "intelligence_source": "Name of the intelligence item or AEO principle driving this",
-            "current_text": "Quote the problematic text from the page",
-            "suggested_text": "Rewritten version that preserves the page's voice while improving AEO structure"
-        }},
-        {{
-            "priority": 2,
-            "action": "Second action",
-            "reason": "Why this matters",
-            "intelligence_source": "Intelligence item or principle",
-            "current_text": "Current text",
-            "suggested_text": "Improved text"
-        }},
-        {{
-            "priority": 3,
-            "action": "Third action",
-            "reason": "Why this matters",
-            "intelligence_source": "Intelligence item or principle",
-            "current_text": "Current text if applicable",
-            "suggested_text": "Improved text if applicable"
-        }}
-    ],
-    "quick_wins": ["Easy change 1", "Easy change 2", "Easy change 3"]
-}}
+Then produce EXACTLY these 6 sections:
 
-The intelligence_applied array MUST contain one entry for EVERY intelligence item in the checklist. Do not skip any.
-Focus on the MOST impactful changes first. Be specific — quote actual text and provide concrete rewrites.
+---
+
+### Section 1: AEO priorities (summary)
+
+Identify the top 3 AEO improvements. For each priority:
+- State the priority and what to change
+- Explain WHY it matters for AEO (1 sentence)
+- Show a two-column comparison:
+  - **Current:** Quote the actual text from the page
+  - **Suggested:** Write the full replacement text
+
+These 3 priorities MUST be incorporated into the full page rewrite in Section 2.
+
+---
+
+### Section 2: Complete rewritten page text
+
+Write the ENTIRE body text for the page, from the first paragraph after H1 to just before the FAQ section. This is the full replacement text the client pastes into their CMS.
+
+Rules:
+- Mark all headings as [H1], [H2], [H3] etc.
+- Include a subtitle line under [H1] (a short, compelling summary sentence)
+- Start with a clear definition of the page's topic in the first sentence (semantic triple: "[Topic] is [definition]")
+- Add a "Who uses [topic]?" section with a numbered list of industries/use cases
+- Mark internal link opportunities as [link: /url-path] based on links found in the page content
+- Write in the page's existing voice and tone — do NOT make it more corporate or generic
+- Every paragraph must be substantive — no filler, no fluff
+- Do NOT include the FAQ section here — that is Section 3
+
+Add a note to the implementer explaining: this text replaces all existing body text from the first paragraph to just before the FAQ section. Images and visual content already on the page can be kept and placed where appropriate.
+
+---
+
+### Section 3: FAQ section — complete rewrite
+
+Rewrite ALL FAQs on the page. Change the FAQ heading to be intent-based (e.g. "Vanlige spørsmål om [topic]" / "Frequently asked questions about [topic]") rather than brand-focused.
+
+For EACH FAQ:
+- Show the question (rewrite it to match user search intent, not brand language)
+- Show the current answer (quote the actual text)
+- Show the new answer (complete replacement, 3-6 sentences, comprehensive, entity-rich)
+
+The new answers must:
+- Answer the question directly in the first sentence
+- Include specific details, numbers, and examples from the page content
+- Be written to match the voice of the page
+- Be self-contained (a reader should understand the answer without reading the rest of the page)
+
+If the page has no FAQ section, create 5 intent-based FAQs with full answers based on the page content and common search queries for the topic.
+
+---
+
+### Section 4: Technical implementation
+
+#### 4a. FAQ Schema Markup (JSON-LD)
+Generate a complete, valid JSON-LD FAQPage schema containing ALL the new FAQ questions and answers from Section 3. Output it as a ready-to-paste `<script type="application/ld+json">` block. This goes in the page's `<head>` tag alongside any existing schema — do NOT replace existing Organization or other schema.
+
+#### 4b. Heading structure (H2 tags)
+List all the H2 sections from the rewritten page text (Section 2), numbered, confirming the heading hierarchy.
+
+#### 4c. Publication date and author
+Recommend adding a visible "Last updated: [date]" line under the H1. Explain why this matters for AI trust signals.
+
+---
+
+### Section 5: SEO improvements
+
+#### 5a. Meta title and meta description
+- Show the current meta title
+- Write a new meta title (under 60 characters, includes primary keyword early)
+- Write a new meta description (under 155 characters, includes a value proposition and call to action)
+
+#### 5b. Internal linking
+List additional internal links that should be added to the page, grouped by category (e.g. industry pages, solution pages). Explain where in the text each link fits naturally. Reference any links you already marked with [link:] in Section 2.
+
+#### 5c. Link audit
+Note any links on the page that point to wrong-language versions (e.g. /en/ links on a /no/ page) and flag them for fixing.
+
+---
+
+### Section 6: Implementation checklist
+
+Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
+- Content (body text replacement, FAQ replacement, FAQ heading change)
+- Technical (FAQ schema markup, H2 tags, publication date)
+- SEO (meta title, meta description, internal links, link audit fixes)
+
+---
+
+## OUTPUT QUALITY RULES
+
+1. FULL REWRITES ONLY. Every section must contain COMPLETE replacement text. No "consider adding...", no "you could improve...", no snippets. The client must be able to paste every piece of text directly into their CMS.
+2. PRESERVE THE PAGE'S VOICE. Read the tone of the existing content and match it. If it's conversational, stay conversational. If it's formal, stay formal.
+3. BE SPECIFIC. Reference actual content from the page. Quote real text. Use real URLs found in the content for internal links.
+4. The JSON-LD in Section 4 must be syntactically valid and contain the EXACT question/answer text from Section 3.
+5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the arbeidspakke.
 """
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=4000,
+            max_tokens=16000,
             temperature=0.3
         )
 
         result_text = response.choices[0].message.content.strip()
 
-        # Clean up JSON if wrapped in markdown code blocks
-        if result_text.startswith("```"):
-            result_text = result_text.split("```")[1]
-            if result_text.startswith("json"):
-                result_text = result_text[4:]
-        result_text = result_text.strip()
-
-        return json.loads(result_text)
-
-    except json.JSONDecodeError as e:
+        # GPT returns markdown directly — wrap in dict for compatibility with
+        # _format_arbeidspakke() which reads recs.get('summary')
         return {
-            "summary": "Unable to parse recommendations. Please try again.",
+            "summary": result_text,
             "intelligence_applied": [],
             "critical_issues": [],
             "action_plan": [],
             "quick_wins": []
         }
+
     except Exception as e:
         return {
-            "summary": f"Error generating recommendations: {str(e)}",
+            "summary": f"Error generating arbeidspakke: {str(e)}",
             "intelligence_applied": [],
             "critical_issues": [],
             "action_plan": [],
