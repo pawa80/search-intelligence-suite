@@ -353,6 +353,15 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 12 2026
 
+### Mar 12 2026 — Widget scoping fix (domain context, intent, page type)
+- **Bug**: Domain context persisted across project switches. Intent and page type persisted across page switches.
+- **Root cause**: Streamlit widgets with fixed `key` params persist their values across reruns. When switching projects/pages, `st.text_area`/`st.selectbox` kept the old entity's value even though `value=` was updated.
+- **Fix** (commit 1ea588b): Key all per-entity widgets by parent ID:
+  - `domain_context_input_{project_id}` + `btn_save_domain_context_{project_id}`
+  - `aeo_intent_input_{page_id}`
+  - `aeo_page_type_select_{page_id}`
+- **Lesson**: In Streamlit, `value=` only applies on first render. After that, the widget's internal state (keyed by `key`) takes over. To reset on entity switch, include the entity ID in the key.
+
 ### Mar 12 2026 — PostgREST schema cache fix (intent + domain context not loading)
 - **Bug**: "Prosjektinnstillinger" sidebar missing, intent not pre-filling from DB
 - **Root cause**: PostgREST caches DB schema. Migrations 007/008 added columns (`page_type`, `intent`, `domain_context`) but PostgREST didn't know about them yet. SELECTing unknown columns returns 400 → `get_projects()` caught error, returned `[]` → entire sidebar broke. Same for `_load_crawled_pages()`.
