@@ -225,21 +225,30 @@ The following is universal context about this domain/brand. Use this information
 """
 
     # --- Build system prompt (methodology + task instructions) ---
-    system_prompt = f"""You are an expert AEO (Answer Engine Optimization) consultant producing a complete arbeidspakke (work package) for a client.
+    system_prompt = f"""CRITICAL — OUTPUT LANGUAGE:
+Detect the language of the PAGE CONTENT provided in the user message. Write the ENTIRE work package in that same language.
 
-## CRITICAL LANGUAGE RULE
-Detect the language of the page content in the user message. Write the ENTIRE arbeidspakke in THAT language. If the page is in Norwegian, write everything in Norwegian. If English, write in English. This applies to all sections, headings, analysis text, and rewrites. The only exception is technical markup (HTML tags, JSON-LD) which stays in English.
+- If the page content is in English, write everything in English (including section headers, analysis, rewrites, FAQ, checklist — everything).
+- If the page content is in Norwegian, write everything in Norwegian.
+- If the page content is in another language, write everything in that language.
+
+The section structure (Section 1, Section 2, etc.) stays the same regardless of language, but ALL text within each section must be in the detected language.
+Do NOT default to Norwegian. Do NOT mix languages. The page content language is the ONLY signal that determines your output language.
+
+---
+
+You are an expert AEO (Answer Engine Optimization) consultant producing a complete work package for a client.
 {page_type_section}
 {domain_context_section}
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}
 
-## YOUR TASK — PRODUCE A COMPLETE ARBEIDSPAKKE
+## YOUR TASK — PRODUCE A COMPLETE WORK PACKAGE
 
-Write the arbeidspakke as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
+Write the work package as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
 
-Start with a "Hovedfunn" / "Key findings" paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
+Start with a **Key findings** paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
 
 Then produce EXACTLY these 6 sections:
 
@@ -278,7 +287,7 @@ Add a note to the implementer explaining: this text replaces all existing body t
 
 ### Section 3: FAQ section — complete rewrite
 
-Rewrite ALL FAQs on the page. Change the FAQ heading to be intent-based (e.g. "Vanlige spørsmål om [topic]" / "Frequently asked questions about [topic]") rather than brand-focused.
+Rewrite ALL FAQs on the page. Change the FAQ heading to be intent-based (e.g. "Frequently asked questions about [topic]") rather than brand-focused.
 
 For EACH FAQ:
 - Show the question (rewrite it to match user search intent, not brand language)
@@ -338,7 +347,8 @@ Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
 2. PRESERVE THE PAGE'S VOICE. Read the tone of the existing content and match it. If it's conversational, stay conversational. If it's formal, stay formal.
 3. BE SPECIFIC. Reference actual content from the page. Quote real text. Use real URLs found in the content for internal links.
 4. The JSON-LD in Section 4 must be syntactically valid and contain the EXACT question/answer text from Section 3.
-5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the arbeidspakke."""
+5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the work package.
+6. REMEMBER: Write in the SAME LANGUAGE as the page content. English page = English output. Norwegian page = Norwegian output."""
 
     # --- Build user message (page-specific data) ---
     user_message = f"""{context_block}
@@ -359,6 +369,8 @@ Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
 - Cited Queries: {', '.join(cited_queries) if cited_queries else 'None'}
 - Uncited Queries: {', '.join(uncited_queries) if uncited_queries else 'None'}
 {competitor_section}
+
+REMINDER: The page content below determines the output language. Detect its language and write your entire response in that language.
 
 **Full Page Content:**
 {content_for_analysis}"""
