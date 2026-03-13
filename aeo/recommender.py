@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from anthropic import Anthropic
+from openai import OpenAI
 import requests
 
 try:
@@ -25,6 +26,42 @@ except Exception:
         return os.getenv("ANTHROPIC_API_KEY")
 
 import intelligence_feed
+
+
+O4_MINI_SYSTEM_PROMPT = """You generate client-ready AEO optimisation work packages (arbeidspakker).
+
+OUTPUT LANGUAGE RULE: Detect the language of the page content. Write your ENTIRE output in that same language. If the page is in Norwegian, write in Norwegian. If English, write in English. This is non-negotiable.
+
+OUTPUT STRUCTURE — follow this exact 6-section format:
+
+## 1. AEO-forbedringer (prioriterte anbefalinger)
+List 3-5 priority improvements. For each: what to change, why it matters for AI search visibility, and impact level (Critical/High/Medium).
+
+## 2. Fullstendig forslag til ny sidetekst
+Write the COMPLETE rewritten page text. Not suggestions — the actual full text ready to paste into CMS. Maintain the author's voice. Add: answer-first opening (direct answer in first 100 words), entity definitions, specific dates/numbers/metrics, structured headings (declarative, not questions).
+
+## 3. FAQ-seksjon
+Write 3-5 FAQ items with full question and answer pairs. Each answer: 40-80 words, starts with direct answer, includes a specific fact. Format as ready-to-paste content.
+
+## 4. Teknisk implementering
+Provide complete, valid JSON-LD FAQ schema markup. Also list: recommended H2 heading structure, date markup, any technical HTML changes needed.
+
+## 5. SEO-forbedringer
+Write exact meta title (max 60 chars) and meta description (max 155 chars). List 3-5 internal linking recommendations with specific anchor text and target URL patterns. Note any /en/ or hreflang fixes needed.
+
+## 6. Sjekkliste
+Numbered checklist of every change to implement. Each item is a specific action, not a vague instruction. Example: "1. Replace opening paragraph with the rewritten version from Section 2" not "1. Improve opening paragraph".
+
+RULES:
+1. Write COMPLETE replacement text, never snippets or suggestions.
+2. The full page rewrite in Section 2 must be at minimum 80% the length of the original.
+3. JSON-LD in Section 4 must be valid and complete — include @context, @type, mainEntity array.
+4. Every FAQ answer must start with a direct factual statement.
+5. Checklist items must be specific enough that a junior marketer can execute without asking questions.
+6. Reference GSC/GA data from the context block if available — mention specific metrics like clicks, impressions, CTR.
+7. If page type is provided, tailor advice accordingly (product page ≠ blog post ≠ landing page).
+8. Do NOT include FAQ sections in product page rewrites — use structured product information instead.
+"""
 
 
 AEO_GUIDE = """
@@ -117,25 +154,32 @@ class RecommendationResult:
     error: Optional[str] = None
 
 
-def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None):
+def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None, model_tier="expensive"):
     """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
-    v2.1: Claude Sonnet 4 for superior Norwegian quality and structured output.
+    v2.2: Model toggle — Claude Sonnet 4 (expensive) or OpenAI o4-mini (cheap).
     Outputs a complete 6-section arbeidspakke in the language of the page content.
     Full rewrites — no snippets, no suggestions. Paste-ready for CMS.
     """
 
-    anthropic_key = _get_anthropic_key()
-    if not anthropic_key:
-        return {
-            "summary": "ANTHROPIC_API_KEY not configured. Add it to .env or Streamlit Cloud secrets.",
-            "intelligence_applied": [],
-            "critical_issues": [],
-            "action_plan": [],
-            "quick_wins": []
-        }
+    _empty_result = {
+        "summary": "",
+        "intelligence_applied": [],
+        "critical_issues": [],
+        "action_plan": [],
+        "quick_wins": []
+    }
 
-    client = Anthropic(api_key=anthropic_key)
+    if model_tier == "expensive":
+        anthropic_key = _get_anthropic_key()
+        if not anthropic_key:
+            _empty_result["summary"] = "ANTHROPIC_API_KEY not configured. Add it to .env or Streamlit Cloud secrets."
+            return _empty_result
+    else:
+        openai_key = api_key or os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            _empty_result["summary"] = "OPENAI_API_KEY not configured. Add it to .env or Streamlit Cloud secrets."
+            return _empty_result
 
     from urllib.parse import urlparse
 
@@ -376,33 +420,81 @@ REMINDER: The page content below determines the output language. Detect its lang
 {content_for_analysis}"""
 
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=16000,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-        )
+        if model_tier == "cheap":
+            # o4-mini path
+            oai_client = OpenAI(api_key=openai_key)
 
-        result_text = message.content[0].text.strip()
+            # Build o4-mini system prompt with page type + domain context injected
+            o4_system = O4_MINI_SYSTEM_PROMPT
+            if page_type:
+                o4_system += f"\nPAGE TYPE: This page is a **{page_type}**. Tailor all recommendations and rewrites to this page type.\n"
+            if domain_context and domain_context.strip():
+                o4_system += f"\nDOMAIN CONTEXT:\n{domain_context.strip()}\n"
+            if intelligence_section:
+                o4_system += f"\n{intelligence_section}\n"
 
-        # Track usage
-        try:
-            from tracking.usage_tracker import log_usage_event
-            _in = message.usage.input_tokens
-            _out = message.usage.output_tokens
-            _cost = (_in * 3 + _out * 15) / 1_000_000
-            log_usage_event(
-                event_type="arbeidspakke_generation",
-                api_provider="anthropic",
-                model="claude-sonnet-4-20250514",
-                input_tokens=_in,
-                output_tokens=_out,
-                estimated_cost_usd=_cost,
+            response = oai_client.chat.completions.create(
+                model="o4-mini-2025-04-16",
+                messages=[
+                    {"role": "developer", "content": o4_system},
+                    {"role": "user", "content": user_message},
+                ],
+                max_completion_tokens=16000,
             )
-        except Exception:
-            pass
+            result_text = response.choices[0].message.content.strip()
 
-        # Claude returns markdown directly — wrap in dict for compatibility with
+            # Track usage
+            try:
+                from tracking.usage_tracker import log_usage_event
+                _usage = response.usage
+                _in = _usage.prompt_tokens if _usage else 0
+                _out = _usage.completion_tokens if _usage else 0
+                # o4-mini pricing: $1.10/M input, $4.40/M output
+                _cost = (_in * 1.1 + _out * 4.4) / 1_000_000
+                log_usage_event(
+                    event_type="arbeidspakke_generation",
+                    api_provider="openai",
+                    model="o4-mini-2025-04-16",
+                    input_tokens=_in,
+                    output_tokens=_out,
+                    estimated_cost_usd=_cost,
+                    event_detail="model_tier=cheap",
+                )
+            except Exception:
+                pass
+
+        else:
+            # Sonnet path (existing)
+            client = Anthropic(api_key=anthropic_key)
+
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+
+            result_text = message.content[0].text.strip()
+
+            # Track usage
+            try:
+                from tracking.usage_tracker import log_usage_event
+                _in = message.usage.input_tokens
+                _out = message.usage.output_tokens
+                _cost = (_in * 3 + _out * 15) / 1_000_000
+                log_usage_event(
+                    event_type="arbeidspakke_generation",
+                    api_provider="anthropic",
+                    model="claude-sonnet-4-20250514",
+                    input_tokens=_in,
+                    output_tokens=_out,
+                    estimated_cost_usd=_cost,
+                    event_detail="model_tier=expensive",
+                )
+            except Exception:
+                pass
+
+        # Both models return markdown directly — wrap in dict for compatibility with
         # _format_arbeidspakke() which reads recs.get('summary')
         return {
             "summary": result_text,

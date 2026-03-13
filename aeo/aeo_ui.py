@@ -376,6 +376,20 @@ def show_aeo_agent(
     st.divider()
     st.subheader("Step 3: Generate Arbeidspakke")
 
+    # Model selection toggle
+    model_tier = st.radio(
+        "AI Model",
+        options=["cheap", "expensive"],
+        format_func=lambda x: {
+            "cheap": "💰 Cheap (o4-mini)",
+            "expensive": "🚀 Expensive (Sonnet)"
+        }[x],
+        index=1,
+        horizontal=True,
+        help="Cheap: faster, lower cost (~$0.03/generation). Expensive: deeper analysis, better rewrites (~$0.11/generation).",
+        key="aeo_model_tier",
+    )
+
     if st.button("Generate Arbeidspakke", type="primary", key="btn_generate_arbeidspakke",
                   disabled=not selected_page.get("url")):
         url = selected_page["url"]
@@ -404,7 +418,8 @@ def show_aeo_agent(
         # Use intent as selected_intents
         selected_intents = [intent] if intent else []
 
-        with st.spinner("Generating arbeidspakke with AI..."):
+        _model_label = "o4-mini" if model_tier == "cheap" else "Claude Sonnet"
+        with st.spinner(f"Generating arbeidspakke with {_model_label}..."):
             recs = generate_recommendations(
                 title=analysis.title,
                 full_content=analysis.full_content,
@@ -416,6 +431,7 @@ def show_aeo_agent(
                 context_block=context_block,
                 page_type=selected_page_type,
                 domain_context=st.session_state.get("domain_context"),
+                model_tier=model_tier,
             )
 
         # Format as markdown
