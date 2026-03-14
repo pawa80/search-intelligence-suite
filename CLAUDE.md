@@ -144,6 +144,9 @@ When adding new tables that reference `projects` or `workspaces`:
 - Pasting can introduce invisible characters or strip hyphens — always verify the key manually
 - The Perplexity key has a hyphen: `pplx-` (was stripped during paste, caused 401)
 
+### Known Bug: Select All checkbox visual state
+- **Rank Tracker "Select all" button** functionally works (bulk delete removes the correct keywords) but checkboxes don't visually fill after clicking "Select all". Likely a Streamlit rendering quirk — `st.checkbox(value=True)` on rerun doesn't always update the visual state despite the widget key being cleared. Low priority — cosmetic only, no data impact.
+
 ## Web Crawler Module
 
 ### Architecture
