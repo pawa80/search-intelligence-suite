@@ -367,6 +367,7 @@ Two features shipped tonight. Both deployed to Streamlit Cloud via master auto-d
 - **Migration 009** (optional): Adds `model_tier`/`model_name` columns to `usage_events`. Not required — tier info already in `event_detail`.
 - **OPENAI_API_KEY**: Already in Streamlit Cloud secrets ✓
 - **Test**: Select a page in AEO Agent, toggle between models, generate, compare output.
+- **TODO (next session)**: Rename "💰 Cheap (o4-mini)" → "💰 Reasonable (o4-mini)" in `aeo/aeo_ui.py` (one-line text change in the `format_func` dict). Update CLAUDE.md references too.
 
 **Feature 2: Data Sources property auto-match by project domain**
 - **Safety tag**: `v2.2-pre-datasource-fix` on commit `a676d3b`
