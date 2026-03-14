@@ -249,6 +249,14 @@ def show_aeo_agent(
     supabase_url = _get_secret("SUPABASE_URL")
     anon_key = _get_secret("SUPABASE_ANON_KEY")
 
+    # Detect project switch — clear stale page-specific state
+    prev_aeo_project = st.session_state.get("_aeo_project_id")
+    if prev_aeo_project != project_id:
+        for key in list(st.session_state.keys()):
+            if key.startswith("aeo_page_") or key.startswith("aeo_arbeidspakke") or key.startswith("aeo_intent_"):
+                del st.session_state[key]
+        st.session_state["_aeo_project_id"] = project_id
+
     st.info(f"Project: **{project_ctx['name']}** · Domain: **{domain}**")
 
     # Step 1: Select page
@@ -256,11 +264,11 @@ def show_aeo_agent(
     pages = _load_crawled_pages(token, project_id)
 
     selected_page = None
-    use_manual = st.checkbox("Paste URL manually instead", key="aeo_manual_url")
+    use_manual = st.checkbox("Paste URL manually instead", key=f"aeo_manual_url_{project_id}")
 
     if use_manual:
         manual_url = st.text_input("URL to analyse", placeholder="https://example.com/page",
-                                    key="aeo_manual_url_input")
+                                    key=f"aeo_manual_url_input_{project_id}")
         if manual_url:
             selected_page = {"id": None, "url": manual_url.strip(), "title": "", "status_code": None}
     else:
@@ -270,15 +278,16 @@ def show_aeo_agent(
 
         page_options = [f"{p['url']} — {(p.get('title') or '')[:50]}" for p in pages]
         # Pre-select page if coming from Matrise Generate button
+        _page_select_key = f"aeo_page_select_{project_id}"
         matrise_url = st.session_state.pop("matrise_generate_url", None)
         if matrise_url:
             for i, p in enumerate(pages):
                 if p["url"] == matrise_url:
-                    st.session_state["aeo_page_select"] = i
+                    st.session_state[_page_select_key] = i
                     break
         selected_idx = st.selectbox("Select a crawled page", range(len(page_options)),
                                      format_func=lambda i: page_options[i],
-                                     key="aeo_page_select")
+                                     key=_page_select_key)
         selected_page = pages[selected_idx]
 
     if not selected_page:
@@ -381,12 +390,12 @@ def show_aeo_agent(
         "AI Model",
         options=["cheap", "expensive"],
         format_func=lambda x: {
-            "cheap": "💰 Cheap (o4-mini)",
-            "expensive": "🚀 Expensive (Sonnet)"
+            "cheap": "💰 Reasonable — Structural Audit",
+            "expensive": "🚀 Premium — Full Rewrite"
         }[x],
         index=1,
         horizontal=True,
-        help="Cheap: faster, lower cost (~$0.03/generation). Expensive: deeper analysis, better rewrites (~$0.11/generation).",
+        help="Reasonable: structural audit with actionable recommendations (~$0.02/generation). Premium: full page rewrites, complete FAQ content, and paste-ready text (~$0.11/generation).",
         key="aeo_model_tier",
     )
 
@@ -443,6 +452,14 @@ def show_aeo_agent(
             intent=intent,
         )
 
+        # Add model footer to markdown
+        _model_display = "🚀 Expensive (Sonnet)" if model_tier == "expensive" else "💰 Reasonable (o4-mini)"
+        arbeidspakke_md += f"\n\n---\n*Generated with: {_model_display} | {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
+
+        # Store model info in context for history display
+        context["model_tier"] = model_tier
+        context["model_name"] = "gpt-4.1-mini-2025-04-14" if model_tier == "cheap" else "claude-sonnet-4-20250514"
+
         # Save to session state for display
         st.session_state["aeo_arbeidspakke"] = arbeidspakke_md
         st.session_state["aeo_arbeidspakke_recs"] = recs
@@ -482,7 +499,15 @@ def show_aeo_agent(
             st.divider()
             with st.expander(f"Previous arbeidspakker for this page ({len(previous)})"):
                 for ap in previous:
-                    st.markdown(f"**{ap.get('generated_at', '')[:16]}** — Intent: {ap.get('intent', '—')}")
+                    _snap = ap.get("context_snapshot") or {}
+                    if isinstance(_snap, str):
+                        try:
+                            _snap = json.loads(_snap)
+                        except Exception:
+                            _snap = {}
+                    _mtier = _snap.get("model_tier")
+                    _mlabel = " — 🚀 Sonnet" if _mtier == "expensive" else " — 💰 o4-mini" if _mtier == "cheap" else ""
+                    st.markdown(f"**{ap.get('generated_at', '')[:16]}**{_mlabel} — Intent: {ap.get('intent', '—')}")
                     with st.expander("View", expanded=False):
                         st.markdown(ap.get("arbeidspakke_markdown", ""))
                     st.caption("---")

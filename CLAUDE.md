@@ -107,8 +107,8 @@ Pal + Morten collaboration.
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
 - **AEO Guide research**: Pal commissioning AEO research to improve `aeo/intelligence/aeo_guide.md`. Potential gaps: multi-modal content signals, freshness/recency weighting, updated stats.
 - **Superadmin AEO Guide editor** (parked): Superadmin role on workspace_members, admin panel to edit AEO guide in-app, store guide in Supabase instead of flat file.
-- **Section 6**: Data import (historical GEO Tracker data migration)
-- **Section 7**: Mobile optimisation
+- **Re-enable disabled features**: Domain context + intent persistence (search `DISABLED:` in `app.py` + `aeo/aeo_ui.py`). Widget key scoping now fixed — needs testing before uncommenting.
+- **Mobile optimisation** (parked): Not blocking beta.
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
 - Remove "Test (3 queries)" button once stable (or keep as dev convenience)
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
@@ -118,7 +118,7 @@ Pal + Morten collaboration.
 - **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
 - **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + o4-mini arbeidspakke) — both in Streamlit Cloud secrets ✓
-- **Arbeidspakke v2.2** (Mar 14): Model toggle — cheap (o4-mini ~$0.03) / expensive (Sonnet ~$0.11). Safety tag `v2.1-pre-model-toggle` on commit `99463eb` as rollback. Previous safety tag `v2.0-working-2026-03-12`.
+- **Arbeidspakke v2.5** (Mar 14): Model toggle — reasonable (gpt-4.1-mini ~$0.02) / expensive (Sonnet ~$0.11). o4-mini prompt hardened (no fabricated stats, strict language rule, markdown-only output, key findings opening). Model indicator in arbeidspakke footer + history. Page selector scoped by project. Safety tags: `v2.4-pre-label-fix`, `v2.3-pre-page-selector-fix`, `v2.2-pre-o4mini-fix`, `v2.1-pre-model-toggle` (commit `99463eb`). Previous safety tag `v2.0-working-2026-03-12`.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
@@ -269,7 +269,8 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Architecture
 - **Location**: `aeo/` package — `analyzer.py`, `recommender.py`, `intelligence_feed.py`, `context_builder.py`, `aeo_ui.py`
 - **Access**: Sidebar tool selector in `app.py` ("AEO Agent")
-- **Models**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`, expensive) or OpenAI o4-mini (`o4-mini-2025-04-16`, cheap) for arbeidspakke generation — user-selectable toggle. OpenAI GPT-4o-mini for content analysis/intent extraction
+- **Models**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`, expensive) or OpenAI gpt-4.1-mini (`gpt-4.1-mini-2025-04-14`, reasonable/cheap) for arbeidspakke generation — user-selectable toggle. OpenAI GPT-4o-mini for content analysis/intent extraction
+- **Model deprecation watch**: gpt-4.1-mini retired from ChatGPT Feb 2026 but API still active. Monitor for API deprecation announcements. GPT-5 Mini ($0.25/$2.00) is the future migration path if needed.
 - **Dependencies**: `anthropic`, `openai`, `lxml` (with `html.parser` fallback)
 - **Origin**: Adapted from standalone AEO Audit Agent (PRCS008) into suite context
 
@@ -351,23 +352,55 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 14 2026
+Last session: Mar 14 2026 (session 2)
 
-### Mar 14 2026 — Session summary for Product Director
-Two features shipped tonight. Both deployed to Streamlit Cloud via master auto-deploy.
+### Mar 14 2026 (session 2) — o4-mini prompt fixes + page selector scoping + label rename
 
-**Feature 1: Model toggle (cheap/expensive) for arbeidspakke generation**
+**3 prompts shipped this session. All in `aeo/` only. No DB/migration/secrets changes.**
+
+**Prompt 1: o4-mini prompt quality fixes** (`aeo/recommender.py`)
+- **Safety tag**: `v2.2-pre-o4mini-fix`
+- 4 rules added to `O4_MINI_SYSTEM_PROMPT` (Sonnet prompt UNCHANGED):
+  1. **No fabricated data** — critical rule at top banning invented statistics/percentages
+  2. **Strict language rule** — 5-point rule with explicit heading translations (EN/NO)
+  3. **Markdown-only output** — no raw HTML tags except JSON-LD in Section 4
+  4. **Key findings opening** — required 3-5 sentence diagnostic paragraph before Section 1
+- Section headings changed from hardcoded Norwegian to English defaults (language rule handles translation)
+
+**Prompt 2: Page selector project scoping fix** (`aeo/aeo_ui.py`)
+- **Safety tag**: `v2.3-pre-page-selector-fix`
+- **Bug**: Switching projects kept old project's pages in AEO Agent dropdown
+- **Fix**: Same pattern as Mar 12 widget scoping fix — include entity ID in widget keys
+  - Page selector key: `aeo_page_select` → `aeo_page_select_{project_id}`
+  - Manual URL widgets: scoped by project_id
+  - Matrise pre-select: writes to project-scoped key
+  - Project change detector: clears `aeo_page_*`, `aeo_arbeidspakke*`, `aeo_intent_*` on switch
+
+**Prompt 3: Label rename + model indicator** (`aeo/aeo_ui.py`)
+- **Safety tag**: `v2.4-pre-label-fix`
+- "Cheap" → "Reasonable" in toggle label + help text (internal value stays `"cheap"`)
+- Model footer appended to arbeidspakke markdown: `Generated with: 💰 Reasonable (o4-mini) | 2026-03-14 22:30`
+- `model_tier` + `model_name` stored in `context_snapshot` JSONB on save
+- History list shows model label per arbeidspakke (graceful fallback for pre-change items)
+
+**Stale items cleaned up:**
+- Migrations 006 (usage_events) + 007 (page_type): Already run — removed from blockers
+- Section 6 (GEO data import): Discarded — removed from Next Up
+- Rename label TODO: Done
+
+### Mar 14 2026 (session 1) — Model toggle + data source auto-match
+Two features shipped. Both deployed to Streamlit Cloud via master auto-deploy.
+
+**Feature 1: Model toggle (reasonable/expensive) for arbeidspakke generation**
 - **Safety tag**: `v2.1-pre-model-toggle` on commit `99463eb`
 - **Commit**: `7bbcf05`
-- **What**: Radio toggle in AEO Agent Step 3 — "💰 Cheap (o4-mini)" / "🚀 Expensive (Sonnet)". Defaults to Expensive (Sonnet). Both produce same 6-section arbeidspakke format.
+- **What**: Radio toggle in AEO Agent Step 3 — "💰 Reasonable (o4-mini)" / "🚀 Expensive (Sonnet)". Defaults to Expensive (Sonnet). Both produce same 6-section arbeidspakke format.
 - **Why**: o4-mini is ~$0.03/gen vs Sonnet ~$0.11/gen. Gives users a fast/cheap option for iterating, expensive option for final client-ready output.
 - **Files changed**: `aeo/aeo_ui.py` (toggle UI), `aeo/recommender.py` (model routing + o4-mini prompt)
 - **Technical**: o4-mini uses `role: "developer"` (not `system`), `max_completion_tokens` (not `max_tokens`). Separate `O4_MINI_SYSTEM_PROMPT` — shorter, more directive, same output structure. Sonnet prompt UNCHANGED.
 - **Usage tracking**: Both paths log `arbeidspakke_generation` with model name + `event_detail="model_tier=cheap|expensive"`
 - **Migration 009** (optional): Adds `model_tier`/`model_name` columns to `usage_events`. Not required — tier info already in `event_detail`.
 - **OPENAI_API_KEY**: Already in Streamlit Cloud secrets ✓
-- **Test**: Select a page in AEO Agent, toggle between models, generate, compare output.
-- **TODO (next session)**: Rename "💰 Cheap (o4-mini)" → "💰 Reasonable (o4-mini)" in `aeo/aeo_ui.py` (one-line text change in the `format_func` dict). Update CLAUDE.md references too.
 
 **Feature 2: Data Sources property auto-match by project domain**
 - **Safety tag**: `v2.2-pre-datasource-fix` on commit `a676d3b`

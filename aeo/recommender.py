@@ -28,39 +28,71 @@ except Exception:
 import intelligence_feed
 
 
-O4_MINI_SYSTEM_PROMPT = """You generate client-ready AEO optimisation work packages (arbeidspakker).
+# Note: Name is historical (originally o4-mini). Now used with gpt-4.1-mini.
+O4_MINI_SYSTEM_PROMPT = """You generate a structural AEO audit report that identifies exactly what needs to change on a page for AI citation, without writing the replacement content.
 
-OUTPUT LANGUAGE RULE: Detect the language of the page content. Write your ENTIRE output in that same language. If the page is in Norwegian, write in Norwegian. If English, write in English. This is non-negotiable.
+OUTPUT LANGUAGE RULE (STRICT):
+1. Detect the language of the page content being analysed.
+2. Write your ENTIRE output in that same language — every heading, every paragraph, every bullet point.
+3. English page = 100% English output. Norwegian page = 100% Norwegian output.
+4. Do NOT mix languages under any circumstances.
 
-OUTPUT STRUCTURE — follow this exact 6-section format:
+CRITICAL RULE — NO FABRICATED DATA:
+Do NOT invent, estimate, or fabricate any statistics, percentages, metrics, or numerical claims.
+Only reference numbers that appear in the page content or in the suite data context block.
+If no data is available, describe the issue qualitatively. Write "data not yet available" rather than inventing a figure.
 
-## 1. AEO-forbedringer (prioriterte anbefalinger)
-List 3-5 priority improvements. For each: what to change, why it matters for AI search visibility, and impact level (Critical/High/Medium).
+OUTPUT STRUCTURE — follow this exact format:
 
-## 2. Fullstendig forslag til ny sidetekst
-Write the COMPLETE rewritten page text. Not suggestions — the actual full text ready to paste into CMS. Maintain the author's voice. Add: answer-first opening (direct answer in first 100 words), entity definitions, specific dates/numbers/metrics, structured headings (declarative, not questions).
+**Key findings**
+3-5 sentences diagnosing the single biggest AEO gap on this page, why it prevents AI citation, and what fixing it would achieve (qualitatively, no fabricated metrics).
 
-## 3. FAQ-seksjon
-Write 3-5 FAQ items with full question and answer pairs. Each answer: 40-80 words, starts with direct answer, includes a specific fact. Format as ready-to-paste content.
+## 1. AEO improvements (prioritised recommendations)
+List 3-5 priority improvements. For each:
+- What to change (specific element on the page)
+- Why it matters for AI citation (reference AEO principles, not invented stats)
+- Impact level: Critical / High / Medium
+- Exact location on the page (which heading, which paragraph, which section)
 
-## 4. Teknisk implementering
-Provide complete, valid JSON-LD FAQ schema markup. Also list: recommended H2 heading structure, date markup, any technical HTML changes needed.
+## 2. Complete proposed page text
+🔒 **Full page rewrites are available on the Premium tier.**
+Instead, here is a structural blueprint:
+- Opening paragraph: [Describe what the first 100 words should contain — direct answer, entity definition, key facts. Do NOT write the actual text.]
+- For each H2 section: [State what the section should achieve, what entity it should define, what facts it should front-load. Do NOT write the replacement content.]
+- Recommended word count target for the full page.
 
-## 5. SEO-forbedringer
-Write exact meta title (max 60 chars) and meta description (max 155 chars). List 3-5 internal linking recommendations with specific anchor text and target URL patterns. Note any /en/ or hreflang fixes needed.
+## 3. FAQ section
+🔒 **Complete FAQ content with full answers is available on the Premium tier.**
+Instead, here are the recommended FAQ questions this page should answer:
+- List 4-5 questions that match search intent for the page topic.
+- For each question: one sentence describing what the answer should cover (do NOT write the full answer).
 
-## 6. Sjekkliste
-Numbered checklist of every change to implement. Each item is a specific action, not a vague instruction. Example: "1. Replace opening paragraph with the rewritten version from Section 2" not "1. Improve opening paragraph".
+## 4. Technical implementation
+Provide complete, valid JSON-LD FAQ schema markup using the questions from Section 3.
+For the answer text in the schema, write a single factual sentence per answer (max 30 words each) using ONLY information from the page content.
+
+Also provide:
+- Recommended H2 heading structure (full list of headings)
+- Date markup recommendation
+- Any technical HTML changes needed (semantic elements, schema types)
+
+## 5. SEO improvements
+- Exact meta title (max 60 chars)
+- Exact meta description (max 155 chars)
+- 3-5 internal linking recommendations with specific anchor text and target URL patterns
+- Any hreflang or canonical fixes needed
+
+## 6. Checklist
+Numbered checklist of every change to implement. Each item is a specific, actionable instruction.
 
 RULES:
-1. Write COMPLETE replacement text, never snippets or suggestions.
-2. The full page rewrite in Section 2 must be at minimum 80% the length of the original.
-3. JSON-LD in Section 4 must be valid and complete — include @context, @type, mainEntity array.
-4. Every FAQ answer must start with a direct factual statement.
-5. Checklist items must be specific enough that a junior marketer can execute without asking questions.
-6. Reference GSC/GA data from the context block if available — mention specific metrics like clicks, impressions, CTR.
-7. If page type is provided, tailor advice accordingly (product page ≠ blog post ≠ landing page).
-8. Do NOT include FAQ sections in product page rewrites — use structured product information instead.
+1. NEVER write full replacement text for page sections. Describe what should be there, not the actual content.
+2. NEVER invent statistics. If the page says "30% missing specifications harm visibility" you may reference that. If no number exists, do not create one.
+3. The JSON-LD schema answers must be single sentences using ONLY facts from the page content.
+4. Every recommendation must reference a specific location on the page (heading, paragraph number, section name).
+5. The structural blueprint in Section 2 should be detailed enough that a copywriter knows exactly what to write — just don't write it for them.
+6. If page type is provided, tailor advice accordingly (product page ≠ blog post ≠ landing page).
+7. Reference GSC/GA data from the context block if available.
 """
 
 
@@ -157,7 +189,7 @@ class RecommendationResult:
 def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None, model_tier="expensive"):
     """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
 
-    v2.2: Model toggle — Claude Sonnet 4 (expensive) or OpenAI o4-mini (cheap).
+    v2.5: Model toggle — Claude Sonnet 4 (expensive, ~$0.11/gen) or OpenAI gpt-4.1-mini (cheap, ~$0.02/gen).
     Outputs a complete 6-section arbeidspakke in the language of the page content.
     Full rewrites — no snippets, no suggestions. Paste-ready for CMS.
     """
@@ -434,12 +466,12 @@ REMINDER: The page content below determines the output language. Detect its lang
                 o4_system += f"\n{intelligence_section}\n"
 
             response = oai_client.chat.completions.create(
-                model="o4-mini-2025-04-16",
+                model="gpt-4.1-mini-2025-04-14",
                 messages=[
-                    {"role": "developer", "content": o4_system},
+                    {"role": "system", "content": o4_system},
                     {"role": "user", "content": user_message},
                 ],
-                max_completion_tokens=16000,
+                max_tokens=16000,
             )
             result_text = response.choices[0].message.content.strip()
 
@@ -449,12 +481,12 @@ REMINDER: The page content below determines the output language. Detect its lang
                 _usage = response.usage
                 _in = _usage.prompt_tokens if _usage else 0
                 _out = _usage.completion_tokens if _usage else 0
-                # o4-mini pricing: $1.10/M input, $4.40/M output
-                _cost = (_in * 1.1 + _out * 4.4) / 1_000_000
+                # gpt-4.1-mini pricing: $0.40/M input, $1.60/M output
+                _cost = (_in * 0.4 + _out * 1.6) / 1_000_000
                 log_usage_event(
                     event_type="arbeidspakke_generation",
                     api_provider="openai",
-                    model="o4-mini-2025-04-16",
+                    model="gpt-4.1-mini-2025-04-14",
                     input_tokens=_in,
                     output_tokens=_out,
                     estimated_cost_usd=_cost,
