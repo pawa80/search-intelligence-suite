@@ -917,10 +917,14 @@ def show_dashboard():
                 if all_selected:
                     if st.button("Deselect all", key="btn_deselect_all"):
                         st.session_state["selected_query_ids"] -= visible_ids
+                        for qid in visible_ids:
+                            st.session_state.pop(f"cb_{qid}", None)
                         st.rerun()
                 else:
                     if st.button("Select all", key="btn_select_all"):
                         st.session_state["selected_query_ids"] |= visible_ids
+                        for qid in visible_ids:
+                            st.session_state.pop(f"cb_{qid}", None)
                         st.rerun()
             with col_count:
                 n_selected = len(currently_selected)
