@@ -258,17 +258,38 @@ def get_queries(access_token, project_id):
 
 
 def add_queries(access_token, project_id, query_list):
-    """Insert queries, skipping duplicates. Returns (added_count, skipped_count)."""
-    added = 0
-    skipped = 0
+    """Insert queries, skipping duplicates. Returns (added_count, skipped_count).
+
+    Uses batch INSERT via PostgREST (single request for all rows) to avoid
+    JWT expiry on large uploads. Falls back to per-row insert if batch fails
+    (e.g. duplicate key on some rows).
+    """
+    # Deduplicate and clean
+    clean_rows = []
     for q in query_list:
         text = q["query_text"].strip()
         cat = q["category"].strip()
-        if not text:
-            continue
+        if text:
+            clean_rows.append({"project_id": project_id, "query_text": text, "category": cat})
+    if not clean_rows:
+        return 0, 0
+
+    # Try batch insert first (single request — no JWT expiry risk)
+    try:
+        db_request("POST", "queries", access_token, body=clean_rows)
+        return len(clean_rows), 0
+    except Exception as batch_err:
+        # Batch failed — likely some duplicates. Fall back to per-row.
+        if "duplicate" not in str(batch_err).lower() and "23505" not in str(batch_err):
+            raise
+
+    # Per-row fallback for mixed new/duplicate rows
+    added = 0
+    skipped = 0
+    for row in clean_rows:
         try:
             db_request("POST", "queries", access_token,
-                body={"project_id": project_id, "query_text": text, "category": cat})
+                body=row)
             added += 1
         except Exception as e:
             if "duplicate" in str(e).lower() or "23505" in str(e):
@@ -869,23 +890,46 @@ def show_dashboard():
                 type=["csv"], key="csv_upload")
             if uploaded:
                 try:
-                    content = uploaded.getvalue().decode("utf-8")
-                    reader = csv.DictReader(io.StringIO(content))
-                    if "query_text" not in reader.fieldnames or "category" not in reader.fieldnames:
-                        st.error("CSV must have 'query_text' and 'category' columns.")
+                    raw_bytes = uploaded.getvalue()
+                    # Decode: utf-8-sig strips BOM if present (Excel default), fallback chain
+                    try:
+                        text = raw_bytes.decode("utf-8-sig")
+                    except UnicodeDecodeError:
+                        try:
+                            text = raw_bytes.decode("utf-8")
+                        except UnicodeDecodeError:
+                            text = raw_bytes.decode("latin-1")
+
+                    reader = csv.DictReader(io.StringIO(text))
+                    fieldnames = [f.strip() for f in (reader.fieldnames or [])]
+
+                    # Try semicolon delimiter if comma didn't produce expected columns
+                    if "query_text" not in fieldnames or "category" not in fieldnames:
+                        reader = csv.DictReader(io.StringIO(text), delimiter=";")
+                        fieldnames = [f.strip() for f in (reader.fieldnames or [])]
+
+                    if "query_text" not in fieldnames or "category" not in fieldnames:
+                        st.error(
+                            f"CSV must have 'query_text' and 'category' columns. "
+                            f"Found columns: {fieldnames}. "
+                            f"Tip: In Excel, save as 'CSV UTF-8 (Comma delimited)'."
+                        )
                     else:
-                        rows = [{"query_text": r["query_text"], "category": r["category"]}
-                                for r in reader if r.get("query_text")]
+                        rows = [{"query_text": r.get("query_text", "").strip(),
+                                 "category": r.get("category", "").strip()}
+                                for r in reader if r.get("query_text", "").strip()]
                         if rows:
-                            added, skipped = add_queries(token, project["id"], rows)
+                            with st.spinner(f"Uploading {len(rows)} queries..."):
+                                added, skipped = add_queries(token, project["id"], rows)
                             msg = f"Added {added} queries."
                             if skipped:
                                 msg += f" {skipped} duplicates skipped."
                             st.success(msg)
+                            st.rerun()
                         else:
                             st.warning("CSV had no valid rows.")
                 except Exception as e:
-                    st.error(f"CSV parsing error: {e}")
+                    st.error(f"CSV upload failed: {e}")
 
         st.caption("💡 Write queries as natural language — the way someone would type them into ChatGPT or Perplexity. For example: \"who are the leading CDP experts in the UK\" rather than \"CDP expert + UK\". Personal name queries like \"who is Pal Erik Waagbo\" work as-is. Queries are sent to the AI engine exactly as written — no preprocessing is applied.")
 
