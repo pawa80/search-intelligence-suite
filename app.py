@@ -288,6 +288,20 @@ def delete_query(access_token, query_id):
         return False
 
 
+def delete_queries_bulk(access_token, query_ids):
+    """Delete multiple queries by ID. Returns count deleted."""
+    if not query_ids:
+        return 0
+    ids_csv = ",".join(query_ids)
+    try:
+        db_request("DELETE", "queries", access_token,
+            params={"id": f"in.({ids_csv})"})
+        return len(query_ids)
+    except Exception as e:
+        st.session_state.error = str(e)
+        return 0
+
+
 # --- Citation engine ---
 
 def check_citation(query_text, domain, api_key):
@@ -873,16 +887,83 @@ def show_dashboard():
                 except Exception as e:
                     st.error(f"CSV parsing error: {e}")
 
-        # Query list
+        st.caption("💡 Write queries as natural language — the way someone would type them into ChatGPT or Perplexity. For example: \"who are the leading CDP experts in the UK\" rather than \"CDP expert + UK\". Personal name queries like \"who is Pal Erik Waagbo\" work as-is. Queries are sent to the AI engine exactly as written — no preprocessing is applied.")
+
+        # Query list with multiselect and bulk delete
         if queries:
             st.divider()
             st.subheader("Queries")
-            for q in queries:
-                col1, col2, col3 = st.columns([4, 2, 1])
-                col1.text(q["query_text"])
-                col2.text(q["category"])
-                if col3.button("Delete", key=f"del_{q['id']}"):
+
+            # Category filter
+            all_categories = sorted(set(q["category"] for q in queries))
+            cat_options = ["All categories"] + all_categories
+            selected_cat = st.selectbox("Filter by category", cat_options, key="query_cat_filter")
+
+            visible_queries = queries if selected_cat == "All categories" else [
+                q for q in queries if q["category"] == selected_cat
+            ]
+
+            # Initialise selection set
+            if "selected_query_ids" not in st.session_state:
+                st.session_state["selected_query_ids"] = set()
+
+            # Select all / Deselect all
+            visible_ids = {q["id"] for q in visible_queries}
+            currently_selected = st.session_state["selected_query_ids"] & visible_ids
+            all_selected = len(currently_selected) == len(visible_ids) and len(visible_ids) > 0
+
+            col_sel, col_count = st.columns([1, 3])
+            with col_sel:
+                if all_selected:
+                    if st.button("Deselect all", key="btn_deselect_all"):
+                        st.session_state["selected_query_ids"] -= visible_ids
+                        st.rerun()
+                else:
+                    if st.button("Select all", key="btn_select_all"):
+                        st.session_state["selected_query_ids"] |= visible_ids
+                        st.rerun()
+            with col_count:
+                n_selected = len(currently_selected)
+                if n_selected > 0:
+                    st.caption(f"{n_selected} selected")
+
+            # Bulk delete button + confirmation
+            if n_selected > 0:
+                if st.session_state.get("_confirm_bulk_delete"):
+                    st.warning(f"Delete {n_selected} keywords? This cannot be undone.")
+                    col_yes, col_no = st.columns(2)
+                    with col_yes:
+                        if st.button("Yes, delete", key="btn_confirm_delete", type="primary"):
+                            deleted = delete_queries_bulk(token, list(currently_selected))
+                            st.session_state["selected_query_ids"] -= currently_selected
+                            st.session_state["_confirm_bulk_delete"] = False
+                            if deleted:
+                                st.success(f"Deleted {deleted} keywords.")
+                            st.rerun()
+                    with col_no:
+                        if st.button("Cancel", key="btn_cancel_delete"):
+                            st.session_state["_confirm_bulk_delete"] = False
+                            st.rerun()
+                else:
+                    if st.button(f"Delete selected ({n_selected})", key="btn_bulk_delete"):
+                        st.session_state["_confirm_bulk_delete"] = True
+                        st.rerun()
+
+            # Query rows with checkboxes
+            for q in visible_queries:
+                col_cb, col_text, col_cat, col_del = st.columns([0.5, 4, 2, 1])
+                is_checked = q["id"] in st.session_state["selected_query_ids"]
+                with col_cb:
+                    new_val = st.checkbox("", value=is_checked, key=f"cb_{q['id']}", label_visibility="collapsed")
+                    if new_val and not is_checked:
+                        st.session_state["selected_query_ids"].add(q["id"])
+                    elif not new_val and is_checked:
+                        st.session_state["selected_query_ids"].discard(q["id"])
+                col_text.text(q["query_text"])
+                col_cat.text(q["category"])
+                if col_del.button("Delete", key=f"del_{q['id']}"):
                     if delete_query(token, q["id"]):
+                        st.session_state["selected_query_ids"].discard(q["id"])
                         st.rerun()
 
 
