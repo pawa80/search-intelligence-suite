@@ -117,8 +117,8 @@ Pal + Morten collaboration.
 - **M2-M4 + Matrise + Arbeidspakker Library all deployed**. Streamlit Cloud auto-deploys from master.
 - **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
-- **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis) — both in Streamlit Cloud secrets ✓
-- **Arbeidspakke v2.1** (Mar 12): Gold standard prompt + Claude Sonnet 4. Deployed. All PD questions resolved (see rolling handover). Safety tag `v2.0-working-2026-03-12` as rollback.
+- **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + o4-mini arbeidspakke) — both in Streamlit Cloud secrets ✓
+- **Arbeidspakke v2.2** (Mar 14): Model toggle — cheap (o4-mini ~$0.03) / expensive (Sonnet ~$0.11). Safety tag `v2.1-pre-model-toggle` on commit `99463eb` as rollback. Previous safety tag `v2.0-working-2026-03-12`.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
@@ -269,7 +269,7 @@ When adding new tables that reference `projects` or `workspaces`:
 ### Architecture
 - **Location**: `aeo/` package — `analyzer.py`, `recommender.py`, `intelligence_feed.py`, `context_builder.py`, `aeo_ui.py`
 - **Access**: Sidebar tool selector in `app.py` ("AEO Agent")
-- **Models**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`) for arbeidspakke generation, OpenAI GPT-4o-mini for content analysis/intent extraction
+- **Models**: Anthropic Claude Sonnet 4 (`claude-sonnet-4-20250514`, expensive) or OpenAI o4-mini (`o4-mini-2025-04-16`, cheap) for arbeidspakke generation — user-selectable toggle. OpenAI GPT-4o-mini for content analysis/intent extraction
 - **Dependencies**: `anthropic`, `openai`, `lxml` (with `html.parser` fallback)
 - **Origin**: Adapted from standalone AEO Audit Agent (PRCS008) into suite context
 
@@ -351,7 +351,19 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 12 2026
+Last session: Mar 14 2026
+
+### Mar 14 2026 — Model toggle: cheap (o4-mini) / expensive (Sonnet)
+- **Safety tag**: `v2.1-pre-model-toggle` on commit `99463eb`
+- **Commit**: `7bbcf05`, pushed to master, auto-deploying to Streamlit Cloud
+- **What changed**:
+  - `aeo/aeo_ui.py`: Horizontal radio toggle ("💰 Cheap (o4-mini)" / "🚀 Expensive (Sonnet)") above Generate button, defaults to Expensive. Spinner shows which model is generating.
+  - `aeo/recommender.py`: New `model_tier` param (default `"expensive"`). `O4_MINI_SYSTEM_PROMPT` constant — shorter, more directive prompt with same 6-section output structure. o4-mini uses `role: "developer"` (not `system`), `max_completion_tokens=16000`. Page type, domain context, and intelligence section injected into o4-mini prompt dynamically. Sonnet path UNCHANGED.
+  - `migrations/009_usage_events_model_columns.sql`: Optional — adds `model_tier` and `model_name` columns to `usage_events`. NOT required — tier info already tracked via `event_detail` field.
+- **Usage tracking**: Both paths log `arbeidspakke_generation` events with model name and `event_detail="model_tier=cheap|expensive"`
+- **o4-mini pricing**: ~$0.03/gen ($1.10/M input, $4.40/M output). Sonnet: ~$0.11/gen ($3/M input, $15/M output)
+- **OPENAI_API_KEY**: Already in Streamlit Cloud secrets from previous GPT-4o-mini usage ✓
+- **Next**: Test both models on same page, compare output quality. Optionally run migration 009 + reload PostgREST schema for dedicated tracking columns.
 
 ### Mar 12 2026 — DISABLED: domain context + intent persistence (temporary)
 - **Reason**: Domain context caused project scoping instability (Scribbler project inaccessible, values followed user across projects). Intent persistence had same widget key scoping issue.
