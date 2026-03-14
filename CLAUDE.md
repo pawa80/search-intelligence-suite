@@ -353,6 +353,29 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 14 2026
 
+### Mar 14 2026 — Session summary for Product Director
+Two features shipped tonight. Both deployed to Streamlit Cloud via master auto-deploy.
+
+**Feature 1: Model toggle (cheap/expensive) for arbeidspakke generation**
+- **Safety tag**: `v2.1-pre-model-toggle` on commit `99463eb`
+- **Commit**: `7bbcf05`
+- **What**: Radio toggle in AEO Agent Step 3 — "💰 Cheap (o4-mini)" / "🚀 Expensive (Sonnet)". Defaults to Expensive (Sonnet). Both produce same 6-section arbeidspakke format.
+- **Why**: o4-mini is ~$0.03/gen vs Sonnet ~$0.11/gen. Gives users a fast/cheap option for iterating, expensive option for final client-ready output.
+- **Files changed**: `aeo/aeo_ui.py` (toggle UI), `aeo/recommender.py` (model routing + o4-mini prompt)
+- **Technical**: o4-mini uses `role: "developer"` (not `system`), `max_completion_tokens` (not `max_tokens`). Separate `O4_MINI_SYSTEM_PROMPT` — shorter, more directive, same output structure. Sonnet prompt UNCHANGED.
+- **Usage tracking**: Both paths log `arbeidspakke_generation` with model name + `event_detail="model_tier=cheap|expensive"`
+- **Migration 009** (optional): Adds `model_tier`/`model_name` columns to `usage_events`. Not required — tier info already in `event_detail`.
+- **OPENAI_API_KEY**: Already in Streamlit Cloud secrets ✓
+- **Test**: Select a page in AEO Agent, toggle between models, generate, compare output.
+
+**Feature 2: Data Sources property auto-match by project domain**
+- **Safety tag**: `v2.2-pre-datasource-fix` on commit `a676d3b`
+- **Bug**: GSC/GA4 property selection was tied to workspace (one connection per user per workspace), not project. Switching projects showed the same GSC/GA4 property — e.g. palerikwaagbo.com data showing when palerikwaagbo.no project was selected.
+- **Fix**: Property dropdowns now auto-select the option matching the current project's domain. Widget keys include project domain so Streamlit resets selection on project switch.
+- **File changed**: `google_data/datasources_ui.py` — new `_best_match_index()` helper, `project_domain` param threaded through.
+- **Scope**: UI-only fix. No schema changes, no RLS changes, no data model changes. Data import was already correctly scoped to `project_id`.
+- **Longer-term**: Could move property selection to per-project (columns on `projects` table) if multi-domain workspaces become common.
+
 ### Mar 14 2026 — Model toggle: cheap (o4-mini) / expensive (Sonnet)
 - **Safety tag**: `v2.1-pre-model-toggle` on commit `99463eb`
 - **Commit**: `7bbcf05`, pushed to master, auto-deploying to Streamlit Cloud

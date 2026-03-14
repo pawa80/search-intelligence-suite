@@ -89,8 +89,9 @@ def show_datasources(
         st.error("Could not refresh Google credentials. Try reconnecting.")
         return
 
-    # Property selection
-    _show_property_selection(creds, conn, token, workspace_id, user_id)
+    # Property selection — auto-match to current project domain
+    _show_property_selection(creds, conn, token, workspace_id, user_id,
+                              project_domain=project_ctx.get("domain", ""))
 
     st.divider()
 
@@ -128,14 +129,30 @@ def _show_connection_section(
         st.link_button("Connect Google Account", auth_url)
 
 
+def _best_match_index(options: list[str], domain: str, fallback: int = 0) -> int:
+    """Find the option index that best matches the project domain."""
+    if not domain:
+        return fallback
+    domain_lower = domain.lower().replace("www.", "")
+    for i, opt in enumerate(options):
+        if domain_lower in opt.lower():
+            return i
+    return fallback
+
+
 def _show_property_selection(
     creds: Any,
     conn: dict,
     token: str,
     workspace_id: str,
     user_id: str,
+    project_domain: str = "",
 ) -> None:
-    """Show dropdowns for selecting GSC and GA4 properties."""
+    """Show dropdowns for selecting GSC and GA4 properties.
+
+    Auto-selects the property matching the current project domain,
+    so switching projects shows the right data source.
+    """
     col_gsc, col_ga4 = st.columns(2)
 
     with col_gsc:
@@ -148,9 +165,10 @@ def _show_property_selection(
 
         if gsc_sites:
             options = [s["url"] for s in gsc_sites]
-            current = conn.get("gsc_property", "")
-            idx = options.index(current) if current in options else 0
-            selected = st.selectbox("Select GSC site", options, index=idx, key="gsc_property_select")
+            # Prefer domain match over stored selection
+            idx = _best_match_index(options, project_domain)
+            selected = st.selectbox("Select GSC site", options, index=idx,
+                                     key=f"gsc_property_select_{project_domain}")
             if selected != conn.get("gsc_property"):
                 update_selected_properties(token, workspace_id, user_id, gsc_property=selected)
                 conn["gsc_property"] = selected
@@ -168,11 +186,13 @@ def _show_property_selection(
         if ga4_props:
             options = [f"{p['display_name']} ({p['property_id']})" for p in ga4_props]
             ids = [p["property_id"] for p in ga4_props]
-            current_id = conn.get("ga4_property_id", "")
-            idx = ids.index(current_id) if current_id in ids else 0
+            # Prefer domain match over stored selection
+            display_names = [p.get("display_name", "") for p in ga4_props]
+            idx = _best_match_index(display_names, project_domain)
             selected_idx = st.selectbox("Select GA4 property", range(len(options)),
                                          format_func=lambda i: options[i],
-                                         index=idx, key="ga4_property_select")
+                                         index=idx,
+                                         key=f"ga4_property_select_{project_domain}")
             selected_prop = ga4_props[selected_idx]
             if selected_prop["property_id"] != conn.get("ga4_property_id"):
                 update_selected_properties(
