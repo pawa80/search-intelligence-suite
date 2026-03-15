@@ -118,7 +118,7 @@ Pal + Morten collaboration.
 - **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
 - **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + o4-mini arbeidspakke) — both in Streamlit Cloud secrets ✓
-- **Arbeidspakke v2.5** (Mar 14): Model toggle — reasonable (gpt-4.1-mini ~$0.02) / expensive (Sonnet ~$0.11). o4-mini prompt hardened (no fabricated stats, strict language rule, markdown-only output, key findings opening). Model indicator in arbeidspakke footer + history. Page selector scoped by project. Safety tags: `v2.4-pre-label-fix`, `v2.3-pre-page-selector-fix`, `v2.2-pre-o4mini-fix`, `v2.1-pre-model-toggle` (commit `99463eb`). Previous safety tag `v2.0-working-2026-03-12`.
+- **Arbeidspakke v2.8** (Mar 15): Reasonable tier = structural audit (gpt-4.1-mini ~$0.02), Premium tier = full rewrite (Sonnet ~$0.11). Reasonable produces diagnostic audit with premium upsell gates on Sections 2+3. Model indicator in footer + history. Page selector scoped by project. Safety tags: `v2.8-pre-csv-fixes`, `v2.7-pre-keyword-mgmt`, `v2.6-pre-reasonable-restructure`, `v2.5-pre-model-swap`, `v2.4-pre-label-fix`, `v2.3-pre-page-selector-fix`, `v2.2-pre-o4mini-fix`, `v2.1-pre-model-toggle` (commit `99463eb`). Previous safety tag `v2.0-working-2026-03-12`.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
@@ -355,9 +355,40 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 14 2026 (session 2)
+Last session: Mar 15 2026
+
+### Mar 15 2026 — Reasonable tier restructure + model swap + Rank Tracker UX + CSV fixes
+
+**Big session: 7 safety tags, 6 commits, all deployed to Streamlit Cloud.**
+
+**AEO Agent changes (prompts 1-6):**
+
+1. **o4-mini prompt quality fixes** (`v2.2-pre-o4mini-fix`): Added anti-hallucination rule, strict language rule, markdown-only output, key findings opening to `O4_MINI_SYSTEM_PROMPT`. Sonnet prompt UNCHANGED.
+
+2. **Page selector project scoping** (`v2.3-pre-page-selector-fix`): Fixed AEO Agent page dropdown showing wrong project's pages after project switch. Widget keys now include `project_id`. Project change detector clears stale `aeo_page_*` / `aeo_arbeidspakke*` / `aeo_intent_*` state.
+
+3. **Label rename + model indicator** (`v2.4-pre-label-fix`): "Cheap" → "Reasonable". Model footer in arbeidspakke markdown. `model_tier` + `model_name` in `context_snapshot` JSONB. History shows model label per arbeidspakke.
+
+4. **Model swap o4-mini → gpt-4.1-mini** (`v2.5-pre-model-swap`): o4-mini hallucinated stats in 100% of tests despite anti-hallucination rules (reasoning model "reasons" fabricated metrics into existence). Switched to gpt-4.1-mini: `system` role (not `developer`), `max_tokens` (not `max_completion_tokens`), cheaper ($0.40/$1.60 vs $1.10/$4.40 per M tokens).
+
+5. **Reasonable tier → structural audit** (`v2.6-pre-reasonable-restructure`): gpt-4.1-mini also hallucinated (root cause: prompt asked for full rewrites encouraging fabrication). Restructured as diagnostic audit: Sections 2+3 show 🔒 premium upsell + structural blueprint/questions instead of full rewrites. Labels: "💰 Reasonable — Structural Audit" / "🚀 Premium — Full Rewrite". Genuine product differentiation instead of a worse version of the same thing.
+
+**Rank Tracker changes (prompts 7-8):**
+
+6. **Keyword management UX** (`v2.7-pre-keyword-mgmt`): Multiselect checkboxes on keyword list, Select all/Deselect all (scoped by category filter), bulk delete with confirmation dialog, category filter dropdown, natural language query input hint. **Known bug**: Select all functionally works but checkboxes don't visually fill (Streamlit rendering quirk, cosmetic only).
+
+7. **CSV upload fixes** (`v2.8-pre-csv-fixes`): UTF-8 BOM handling (`utf-8-sig` decode), `latin-1` fallback, semicolon delimiter auto-detection, column name whitespace stripping, better error messages showing actual columns found. Batch INSERT (single POST) instead of per-row loop to prevent JWT expiry on large uploads. Falls back to per-row only for duplicate handling.
+
+**Commits**: `709c0ae` → `a2a0db0` → `0a1d278` → `52f22b7` → `77e18ff`, all pushed to master.
+
+**Files changed**: `aeo/recommender.py`, `aeo/aeo_ui.py`, `app.py`, `CLAUDE.md`
+
+**No migrations, no schema changes, no new secrets needed.**
+
+**Stale items cleaned up**: Migrations 006+007 (already run), Section 6 (discarded), label rename TODO (done).
 
 ### Mar 14 2026 (session 2) — o4-mini prompt fixes + page selector scoping + label rename
+**Superseded by Mar 15 session above — kept for reference.**
 
 **3 prompts shipped this session. All in `aeo/` only. No DB/migration/secrets changes.**
 
