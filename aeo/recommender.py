@@ -348,8 +348,8 @@ These 3 priorities MUST be incorporated into the full page rewrite in Section 2.
 Write the ENTIRE body text for the page, from the first paragraph after H1 to just before the FAQ section. This is the full replacement text the client pastes into their CMS.
 
 Rules:
-- Mark all headings as [H1], [H2], [H3] etc.
-- Include a subtitle line under [H1] (a short, compelling summary sentence)
+- Use standard markdown heading syntax for all headings: `#` for H1, `##` for H2, `###` for H3 etc. Do NOT use bracketed labels like [H1] or [H2].
+- Include a subtitle line under the H1 heading (a short, compelling summary sentence)
 - Start with a clear definition of the page's topic in the first sentence (semantic triple: "[Topic] is [definition]")
 - Add a "Who uses [topic]?" section with a numbered list of industries/use cases
 - Mark internal link opportunities as [link: /url-path] based on links found in the page content
