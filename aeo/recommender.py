@@ -332,12 +332,16 @@ Then produce EXACTLY these 6 sections:
 
 ### Section 1: AEO priorities (summary)
 
-Identify the top 3 AEO improvements. For each priority:
-- State the priority and what to change
-- Explain WHY it matters for AEO (1 sentence)
-- Show a two-column comparison:
-  - **Current:** Quote the actual text from the page
-  - **Suggested:** Write the full replacement text
+Identify the top 3 AEO improvements. For each priority, use this structure:
+
+#### Priority [number]: [what to change]
+[Why it matters for AEO — 1 sentence]
+
+**Current:**
+> [quote the actual text from the page]
+
+**Suggested:**
+> [full replacement text]
 
 These 3 priorities MUST be incorporated into the full page rewrite in Section 2.
 
@@ -365,10 +369,19 @@ Add a note to the implementer explaining: this text replaces all existing body t
 
 Rewrite ALL FAQs on the page. Change the FAQ heading to be intent-based (e.g. "Frequently asked questions about [topic]") rather than brand-focused.
 
-For EACH FAQ:
-- Show the question (rewrite it to match user search intent, not brand language)
-- Show the current answer (quote the actual text)
-- Show the new answer (complete replacement, 3-6 sentences, comprehensive, entity-rich)
+For EACH FAQ, use this exact markdown structure:
+
+#### Q: [rewritten question matching user search intent]
+
+**Current answer:**
+> [quote the actual text from the page, or "Not present on page" if missing]
+
+**New answer:**
+[complete replacement, 3-6 sentences, comprehensive, entity-rich]
+
+---
+
+The `####`, blockquote for current answer, and horizontal rule between FAQs are mandatory formatting.
 
 The new answers must:
 - Answer the question directly in the first sentence
