@@ -36,6 +36,176 @@ supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", layout="wide")
 
+# Midnight Observatory theme
+st.markdown("""
+<style>
+/* --- Sidebar --- */
+[data-testid="stSidebar"] {
+    background-color: #0A1219 !important;
+    border-right: 1px solid #1A2D3D !important;
+}
+[data-testid="stSidebar"] .stMarkdown p,
+[data-testid="stSidebar"] label {
+    color: #8AACBF !important;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #5DCAA5 !important;
+}
+
+/* --- Metric cards --- */
+[data-testid="stMetric"] {
+    background-color: #141F2B !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    border: 1px solid #1A2D3D !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #4A6A7E !important;
+}
+[data-testid="stMetricValue"] {
+    color: #5DCAA5 !important;
+}
+
+/* --- Buttons --- */
+.stButton > button[kind="primary"],
+.stButton > button {
+    background-color: #EF9F27 !important;
+    color: #412402 !important;
+    border: none !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+}
+.stButton > button:hover {
+    background-color: #FAC775 !important;
+    color: #412402 !important;
+}
+.stButton > button[kind="secondary"] {
+    background-color: transparent !important;
+    color: #5DCAA5 !important;
+    border: 1px solid #1A2D3D !important;
+}
+
+/* --- Form inputs --- */
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox > div > div {
+    background-color: #141F2B !important;
+    color: #8AACBF !important;
+    border: 1px solid #1A2D3D !important;
+    border-radius: 6px !important;
+}
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+    border-color: #5DCAA5 !important;
+    box-shadow: 0 0 0 1px #5DCAA5 !important;
+}
+
+/* --- Expanders --- */
+.streamlit-expanderHeader {
+    background-color: #141F2B !important;
+    border: 1px solid #1A2D3D !important;
+    border-radius: 6px !important;
+    color: #8AACBF !important;
+}
+
+/* --- Tables and dataframes --- */
+[data-testid="stDataFrame"] {
+    background-color: #141F2B !important;
+    border-radius: 8px !important;
+}
+.stDataFrame th {
+    background-color: #0A1219 !important;
+    color: #5DCAA5 !important;
+    border-bottom: 1px solid #1A2D3D !important;
+}
+.stDataFrame td {
+    color: #8AACBF !important;
+    border-bottom: 1px solid #1A2D3D !important;
+}
+
+/* --- Tabs --- */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0px;
+    border-bottom: 1px solid #1A2D3D !important;
+}
+.stTabs [data-baseweb="tab"] {
+    color: #4A6A7E !important;
+    border-bottom: 2px solid transparent !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #5DCAA5 !important;
+    border-bottom: 2px solid #5DCAA5 !important;
+}
+
+/* --- Download buttons --- */
+.stDownloadButton > button {
+    background-color: #1A2D3D !important;
+    color: #5DCAA5 !important;
+    border: 1px solid #1A2D3D !important;
+}
+.stDownloadButton > button:hover {
+    background-color: #243A4D !important;
+}
+
+/* --- Radio buttons --- */
+.stRadio > div {
+    background-color: #141F2B !important;
+    border-radius: 6px !important;
+    padding: 8px !important;
+    border: 1px solid #1A2D3D !important;
+}
+.stRadio label {
+    color: #8AACBF !important;
+}
+
+/* --- Messages --- */
+.stSuccess {
+    background-color: rgba(93, 202, 165, 0.1) !important;
+    color: #5DCAA5 !important;
+    border: 1px solid rgba(93, 202, 165, 0.3) !important;
+}
+.stWarning {
+    background-color: rgba(239, 159, 39, 0.1) !important;
+    color: #EF9F27 !important;
+    border: 1px solid rgba(239, 159, 39, 0.3) !important;
+}
+.stException, .stError {
+    background-color: rgba(232, 89, 60, 0.1) !important;
+    color: #E8593C !important;
+    border: 1px solid rgba(232, 89, 60, 0.3) !important;
+}
+
+/* --- Progress bar --- */
+.stProgress > div > div > div {
+    background-color: #5DCAA5 !important;
+}
+
+/* --- Dividers --- */
+hr {
+    border-color: #1A2D3D !important;
+}
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #0F1923;
+}
+::-webkit-scrollbar-thumb {
+    background: #1A2D3D;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #2A3D4D;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 def init_session_state():
     defaults = {
@@ -441,7 +611,7 @@ def get_latest_results(access_token, project_id):
 # --- UI: Auth page ---
 
 def show_auth_page():
-    st.title("Search Intelligence Suite")
+    st.title("Avily — Search Intelligence")
     st.markdown("AI-powered search optimisation tools")
 
     if st.session_state.error:
@@ -682,7 +852,7 @@ def show_dashboard():
 
     # --- Rank Tracker main area ---
     if not projects:
-        st.title("Welcome to Search Intelligence Suite")
+        st.title("Welcome to Avily")
         st.info("Create your first project to start tracking.")
         return
 

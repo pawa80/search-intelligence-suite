@@ -358,6 +358,29 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 25 2026
 
+### Mar 25 2026 — "Midnight Observatory" visual overhaul
+
+**Safety tag**: `v3.0-pre-visual-overhaul` (pre-change state)
+
+**Visual-only change. No logic, no database, no functionality changes.**
+
+**What changed:**
+1. `.streamlit/config.toml`: Dark navy theme (background #0F1923, secondary #141F2B, primary accent teal #5DCAA5, text #E8F0F4)
+2. `app.py`: Single `st.markdown()` CSS injection block after `st.set_page_config()` — ~150 lines of custom CSS targeting sidebar, metrics, buttons, inputs, expanders, tables, tabs, radio, messages, progress bars, dividers, scrollbar
+3. Display titles renamed: "Search Intelligence Suite" → "Avily — Search Intelligence", welcome page → "Welcome to Avily"
+
+**Design system — Midnight Observatory:**
+- Canvas: #0F1923 (deep navy), Surfaces: #141F2B (dark panels), Sidebar: #0A1219 (darkest)
+- Teal #5DCAA5: data accents, nav, good scores, links
+- Amber #EF9F27: CTA buttons, warnings, medium scores
+- Coral #E8593C: errors, low scores
+- Text: #E8F0F4 (primary), #8AACBF (secondary), #4A6A7E (muted)
+- Borders: #1A2D3D
+
+**Reversal**: `git checkout v3.0-pre-visual-overhaul -- .streamlit/config.toml app.py`
+
+**Files changed**: `.streamlit/config.toml`, `app.py` (CSS + titles only)
+
 ### Mar 25 2026 — Intent persistence fix + cross-screen visibility
 
 **Safety tag**: `v2.9-intent-persistence-fix` (pre-change state)
