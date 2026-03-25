@@ -550,38 +550,35 @@ def show_dashboard():
             selected_project = next(p for p in projects if p["name"] == selected_name)
             st.session_state.selected_project_id = selected_project["id"]
 
-            # DISABLED: domain context feature — unstable project scoping. Re-enable after fix.
-            # st.session_state["domain_context"] = selected_project.get("domain_context") or ""
-            st.session_state["domain_context"] = ""
+            st.session_state["domain_context"] = selected_project.get("domain_context") or ""
 
-        # DISABLED: domain context feature — unstable project scoping. Re-enable after fix.
-        # if projects and st.session_state.selected_project_id:
-        #     _pid = st.session_state.selected_project_id
-        #     with st.expander("Prosjektinnstillinger"):
-        #         _dc_val = st.session_state.get("domain_context", "")
-        #         _new_dc = st.text_area(
-        #             "Domenekontekst",
-        #             value=_dc_val,
-        #             height=120,
-        #             help="Beskriv merkevaren, målgruppe, tone og posisjonering. Denne konteksten brukes i alle arbeidspakker for dette prosjektet.",
-        #             key=f"domain_context_input_{_pid}",
-        #         )
-        #         if st.button("Lagre", key=f"btn_save_domain_context_{_pid}"):
-        #             try:
-        #                 db_request("PATCH", "projects", token,
-        #                            params={"id": f"eq.{st.session_state.selected_project_id}"},
-        #                            body={"domain_context": _new_dc if _new_dc else None})
-        #                 st.session_state["domain_context"] = _new_dc
-        #                 st.success("Domenekontekst lagret.")
-        #                 try:
-        #                     from tracking.usage_tracker import log_usage_event
-        #                     log_usage_event("domain_context_set",
-        #                                     event_detail=f"{len(_new_dc)} chars",
-        #                                     project_id=st.session_state.selected_project_id)
-        #                 except Exception:
-        #                     pass
-        #             except Exception as e:
-        #                 st.error(f"Feil ved lagring: {e}")
+        if projects and st.session_state.selected_project_id:
+            _pid = st.session_state.selected_project_id
+            with st.expander("Prosjektinnstillinger"):
+                _dc_val = st.session_state.get("domain_context", "")
+                _new_dc = st.text_area(
+                    "Domenekontekst",
+                    value=_dc_val,
+                    height=120,
+                    help="Beskriv merkevaren, målgruppe, tone og posisjonering. Denne konteksten brukes i alle arbeidspakker for dette prosjektet.",
+                    key=f"domain_context_input_{_pid}",
+                )
+                if st.button("Lagre", key=f"btn_save_domain_context_{_pid}"):
+                    try:
+                        db_request("PATCH", "projects", token,
+                                   params={"id": f"eq.{st.session_state.selected_project_id}"},
+                                   body={"domain_context": _new_dc if _new_dc else None})
+                        st.session_state["domain_context"] = _new_dc
+                        st.success("Domenekontekst lagret.")
+                        try:
+                            from tracking.usage_tracker import log_usage_event
+                            log_usage_event("domain_context_set",
+                                            event_detail=f"{len(_new_dc)} chars",
+                                            project_id=st.session_state.selected_project_id)
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        st.error(f"Feil ved lagring: {e}")
 
         with st.expander("Create New Project"):
             with st.form("create_project_form"):

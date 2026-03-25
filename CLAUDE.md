@@ -67,6 +67,7 @@ Pal + Morten collaboration.
 - `workspaces` INSERT: `created_by = auth.uid()`
 - `workspaces` SELECT: `created_by = auth.uid()`
 - `workspaces` UPDATE: `user_in_workspace(id)` (SECURITY DEFINER, safe)
+- `projects` UPDATE: `user_in_workspace(workspace_id)` (SECURITY DEFINER) — migration 010
 - `workspace_members` INSERT: `user_id = auth.uid()`
 - `workspace_members` SELECT: `user_id = auth.uid()`
 - `geo_check_results` INSERT: `user_owns_project(project_id)` (SECURITY DEFINER)
@@ -107,7 +108,7 @@ Pal + Morten collaboration.
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
 - **AEO Guide research**: Pal commissioning AEO research to improve `aeo/intelligence/aeo_guide.md`. Potential gaps: multi-modal content signals, freshness/recency weighting, updated stats.
 - **Superadmin AEO Guide editor** (parked): Superadmin role on workspace_members, admin panel to edit AEO guide in-app, store guide in Supabase instead of flat file.
-- **Re-enable disabled features**: Domain context + intent persistence (search `DISABLED:` in `app.py` + `aeo/aeo_ui.py`). Widget key scoping now fixed — needs testing before uncommenting.
+- **Domain context + intent persistence**: Re-enabled Mar 24. Run migration 010 (projects UPDATE RLS) + PostgREST schema reload, then test.
 - **Mobile optimisation** (parked): Not blocking beta.
 - Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
 - Remove "Test (3 queries)" button once stable (or keep as dev convenience)
@@ -355,7 +356,52 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 15 2026
+Last session: Mar 24 2026
+
+### Mar 24 2026 — Re-enabled domain context + intent persistence
+
+**Safety tag**: `v2.7-re-enable-context-intent` (pre-change state)
+
+**What was re-enabled:**
+1. **Domain context** (`app.py`): "Prosjektinnstillinger" sidebar expander uncommented. Textarea loads/saves `domain_context` per project. Widget key includes `project_id` (`domain_context_input_{_pid}`). Save button PATCHes `projects` table.
+2. **Intent persistence** (`aeo/aeo_ui.py`): Intent pre-fills from stored `intent` column on `pages` table when a page is selected. On Generate, if intent changed, PATCHes `intent` on the selected page. Widget key already included `_page_key` (page_id).
+
+**Why it was originally disabled (Mar 12)**: Values followed user across projects/pages because Streamlit widget keys didn't include entity IDs. The fix pattern (include `project_id`/`page_id` in widget key) was already applied in the page selector fix (v2.3) and was already present in the commented-out code — it just needed uncommenting.
+
+**No code changes beyond uncommenting** — the widget key scoping was already correct in the disabled code.
+
+**Manual step required**: Reload PostgREST schema in Supabase Dashboard (Settings > API > Reload Schema) to ensure `domain_context` and `intent` columns are PATCHable. The columns exist (migration 008 was run Mar 12) but PostgREST may have a stale schema cache.
+
+**Security review**: Both PATCH operations are RLS-protected (projects via `user_in_workspace`, pages via `user_owns_project`). Values passed as JSON body, no injection risk.
+
+**Test plan**:
+- Switch between two projects → verify domain context is different per project
+- Select a page, set intent, switch to different page, come back → intent should persist
+- Generate arbeidspakke with domain context set → verify context appears in output
+
+**Migration required**: `migrations/010_projects_update_policy.sql` — adds UPDATE RLS policy on `projects` table using `user_in_workspace(workspace_id)`. Without this, the domain context PATCH is silently blocked by RLS (returns 200 but affects 0 rows). Run in Supabase SQL editor.
+
+**No schema changes, no new secrets, no new dependencies.**
+
+### Mar 18 2026 — Arbeidspakke output formatting fixes (Premium Sonnet prompt)
+
+**Session focus: UX quality of arbeidspakke markdown output, triggered by Morten feedback.**
+
+**Safety tag**: `v2.8-pre-h2-format-fix` (pre-change state)
+
+**2 commits, both pushed to master, auto-deployed:**
+
+1. **H2 heading rendering fix** (commit `fe589c2`): Sonnet prompt Section 2 instructed AI to output `[H1]`, `[H2]`, `[H3]` bracket labels. These rendered as flat text in `st.markdown()`. Changed to standard markdown heading syntax (`#`, `##`, `###`). Explicit "Do NOT use bracketed labels" rule added.
+
+2. **FAQ + priority formatting overhaul** (commit `6466036`): Section 1 priorities and Section 3 FAQs had current/new text running together on one line with no visual separation. Fixed:
+   - **Section 1**: Each priority now gets `####` subheading, current/suggested text in blockquotes (`>`)
+   - **Section 3**: Each FAQ gets `####` question heading, current answer in blockquote, new answer as body text, `---` dividers between FAQs. Mandatory formatting instructions added to prompt.
+
+**Only file changed**: `aeo/recommender.py` (Sonnet system prompt only — Reasonable tier prompt NOT changed, it doesn't output page rewrites).
+
+**No migrations, no schema changes, no new secrets.**
+
+**Note for Product Director**: These are prompt-only changes affecting output formatting. The Reasonable tier prompt was left untouched since it produces structural audits (no full rewrites = no heading formatting issue). If Morten reports similar formatting issues in Section 1 priorities on the Reasonable tier, the same blockquote pattern can be applied to `O4_MINI_SYSTEM_PROMPT`. The `[link: /url-path]` syntax in Section 2 is still bracket-based but intentional — it's a placeholder notation for the implementer, not a rendered heading.
 
 ### Mar 15 2026 — Reasonable tier restructure + model swap + Rank Tracker UX + CSV fixes
 
@@ -456,14 +502,9 @@ Two features shipped. Both deployed to Streamlit Cloud via master auto-deploy.
 - **OPENAI_API_KEY**: Already in Streamlit Cloud secrets from previous GPT-4o-mini usage ✓
 - **Next**: Test both models on same page, compare output quality. Optionally run migration 009 + reload PostgREST schema for dedicated tracking columns.
 
-### Mar 12 2026 — DISABLED: domain context + intent persistence (temporary)
-- **Reason**: Domain context caused project scoping instability (Scribbler project inaccessible, values followed user across projects). Intent persistence had same widget key scoping issue.
-- **What's disabled** (commit 834fda5):
-  - `app.py`: "Prosjektinnstillinger" expander commented out. `domain_context` set to `""` so Sonnet prompt skips it.
-  - `aeo/aeo_ui.py`: Intent pre-fill from DB commented out. Intent PATCH on Generate commented out. Text input still works as normal (user types, value passes to generation, nothing persists).
-- **What still works**: Page type system, usage tracking, language detection fix, crawler overview, arbeidspakke generation.
-- **To re-enable**: Search for `DISABLED:` comments in `app.py` and `aeo/aeo_ui.py`. Fix the Streamlit widget key scoping properly (include entity ID in key), then uncomment.
-- **DB columns still exist**: `domain_context` on `projects`, `intent` on `pages` — no schema change needed to re-enable.
+### Mar 12 2026 — DISABLED: domain context + intent persistence (temporary) — ✅ RE-ENABLED Mar 24
+- **Reason for disabling**: Domain context caused project scoping instability (values followed user across projects). Intent persistence had same widget key scoping issue.
+- **Re-enabled**: Mar 24 2026. Widget key scoping was already correct in the disabled code — just needed uncommenting.
 
 ### Mar 12 2026 — Widget scoping fix (domain context, intent, page type)
 - **Bug**: Domain context persisted across project switches. Intent and page type persisted across page switches.

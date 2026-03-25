@@ -371,12 +371,12 @@ def show_aeo_agent(
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
 
     # Step 2: Intent
-    # DISABLED: intent persistence — re-enable after domain context scoping fix
-    # stored_intent = selected_page.get("intent") or ""
+    stored_intent = selected_page.get("intent") or ""
     st.divider()
     st.subheader("Step 2: Set page intent")
     intent = st.text_input(
         "What is this page meant to achieve?",
+        value=stored_intent,
         placeholder='e.g. "Rank for \'best running shoes Norway\' and be cited by AI for product comparisons"',
         key=f"aeo_intent_input_{_page_key}",
     )
@@ -403,16 +403,15 @@ def show_aeo_agent(
                   disabled=not selected_page.get("url")):
         url = selected_page["url"]
 
-        # DISABLED: intent persistence — re-enable after domain context scoping fix
-        # if selected_page.get("id") and intent != stored_intent:
-        #     _db_patch(token, "pages",
-        #               params={"id": f"eq.{selected_page['id']}"},
-        #               body={"intent": intent if intent else None})
-        #     try:
-        #         from tracking.usage_tracker import log_usage_event
-        #         log_usage_event("intent_saved", event_detail="page intent set", project_id=project_id)
-        #     except Exception:
-        #         pass
+        if selected_page.get("id") and intent != stored_intent:
+            _db_patch(token, "pages",
+                      params={"id": f"eq.{selected_page['id']}"},
+                      body={"intent": intent if intent else None})
+            try:
+                from tracking.usage_tracker import log_usage_event
+                log_usage_event("intent_saved", event_detail="page intent set", project_id=project_id)
+            except Exception:
+                pass
 
         with st.spinner("Fetching and analysing page content..."):
             analysis = analyze_url(url, openai_key)
