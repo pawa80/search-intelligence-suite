@@ -34,158 +34,238 @@ PERPLEXITY_API_KEY = get_secret("PERPLEXITY_API_KEY")
 # Unauthenticated client for auth operations only
 supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-st.set_page_config(page_title="Search Intelligence Suite", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="Aevilab", page_icon="⬡", layout="wide")
 
-# Midnight Observatory theme
+# Aevilab design system — matched to prototype (aevilab-prototype.html)
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
+
+/* --- Global typography --- */
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 14px;
+}
+h1, h2, h3,
+[data-testid="stHeading"] h1,
+[data-testid="stHeading"] h2,
+[data-testid="stHeading"] h3 {
+    font-family: 'Syne', sans-serif !important;
+    letter-spacing: -0.3px !important;
+}
+code, pre, .stCode,
+[data-testid="stCode"] {
+    font-family: 'DM Mono', monospace !important;
+}
+
 /* --- Sidebar --- */
 [data-testid="stSidebar"] {
-    background-color: #0A1219 !important;
-    border-right: 1px solid #1A2D3D !important;
+    background-color: #111318 !important;
+    border-right: 1px solid #2a2f3a !important;
 }
 [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] label {
-    color: #8AACBF !important;
+    color: #7a8099 !important;
+    font-size: 13px !important;
 }
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 {
-    color: #5DCAA5 !important;
+    color: #e8eaf0 !important;
+}
+[data-testid="stSidebar"] .stSelectbox label,
+[data-testid="stSidebar"] .stRadio label {
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: #4e5568 !important;
+}
+
+/* --- Main area --- */
+[data-testid="stAppViewContainer"] {
+    background-color: #0d0f14 !important;
+}
+.stApp {
+    background-color: #0d0f14 !important;
 }
 
 /* --- Metric cards --- */
 [data-testid="stMetric"] {
-    background-color: #141F2B !important;
+    background-color: #21252e !important;
     border-radius: 8px !important;
-    padding: 14px 16px !important;
-    border: 1px solid #1A2D3D !important;
+    padding: 16px !important;
+    border: 1px solid #2a2f3a !important;
 }
 [data-testid="stMetricLabel"] {
-    color: #4A6A7E !important;
+    color: #7a8099 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
 }
 [data-testid="stMetricValue"] {
-    color: #5DCAA5 !important;
+    font-family: 'Syne', sans-serif !important;
+    font-weight: 700 !important;
+    color: #e8eaf0 !important;
 }
 
-/* --- Buttons --- */
+/* --- Buttons (primary = amber CTA) --- */
 .stButton > button[kind="primary"],
 .stButton > button {
-    background-color: #EF9F27 !important;
-    color: #412402 !important;
+    background-color: #f0a500 !important;
+    color: #0d0f14 !important;
     border: none !important;
-    font-weight: 600 !important;
-    border-radius: 6px !important;
-    transition: all 0.2s ease !important;
+    font-weight: 500 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+    transition: all 0.15s ease !important;
 }
 .stButton > button:hover {
-    background-color: #FAC775 !important;
-    color: #412402 !important;
+    background-color: #ffb820 !important;
+    color: #0d0f14 !important;
 }
 .stButton > button[kind="secondary"] {
-    background-color: transparent !important;
-    color: #5DCAA5 !important;
-    border: 1px solid #1A2D3D !important;
+    background-color: #21252e !important;
+    color: #e8eaf0 !important;
+    border: 1px solid #343b48 !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    border-color: #4e5568 !important;
 }
 
 /* --- Form inputs --- */
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox > div > div {
-    background-color: #141F2B !important;
-    color: #8AACBF !important;
-    border: 1px solid #1A2D3D !important;
-    border-radius: 6px !important;
+    background-color: #21252e !important;
+    color: #e8eaf0 !important;
+    border: 1px solid #343b48 !important;
+    border-radius: 8px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 13px !important;
+}
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {
+    color: #4e5568 !important;
 }
 .stTextInput input:focus,
 .stTextArea textarea:focus {
-    border-color: #5DCAA5 !important;
-    box-shadow: 0 0 0 1px #5DCAA5 !important;
+    border-color: #f0a500 !important;
+    box-shadow: 0 0 0 1px #f0a500 !important;
 }
 
 /* --- Expanders --- */
 .streamlit-expanderHeader {
-    background-color: #141F2B !important;
-    border: 1px solid #1A2D3D !important;
-    border-radius: 6px !important;
-    color: #8AACBF !important;
+    background-color: #1a1d24 !important;
+    border: 1px solid #2a2f3a !important;
+    border-radius: 8px !important;
+    color: #7a8099 !important;
 }
 
 /* --- Tables and dataframes --- */
 [data-testid="stDataFrame"] {
-    background-color: #141F2B !important;
+    background-color: #1a1d24 !important;
     border-radius: 8px !important;
+    border: 1px solid #2a2f3a !important;
 }
 .stDataFrame th {
-    background-color: #0A1219 !important;
-    color: #5DCAA5 !important;
-    border-bottom: 1px solid #1A2D3D !important;
+    background-color: #1a1d24 !important;
+    color: #7a8099 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    font-weight: 500 !important;
+    border-bottom: 1px solid #2a2f3a !important;
 }
 .stDataFrame td {
-    color: #8AACBF !important;
-    border-bottom: 1px solid #1A2D3D !important;
+    color: #e8eaf0 !important;
+    border-bottom: 1px solid #2a2f3a !important;
+    font-size: 12.5px !important;
 }
 
 /* --- Tabs --- */
 .stTabs [data-baseweb="tab-list"] {
     gap: 0px;
-    border-bottom: 1px solid #1A2D3D !important;
+    border-bottom: 1px solid #2a2f3a !important;
 }
 .stTabs [data-baseweb="tab"] {
-    color: #4A6A7E !important;
+    color: #4e5568 !important;
     border-bottom: 2px solid transparent !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
 }
 .stTabs [aria-selected="true"] {
-    color: #5DCAA5 !important;
-    border-bottom: 2px solid #5DCAA5 !important;
+    color: #f0a500 !important;
+    border-bottom: 2px solid #f0a500 !important;
+    font-weight: 500 !important;
 }
 
 /* --- Download buttons --- */
 .stDownloadButton > button {
-    background-color: #1A2D3D !important;
-    color: #5DCAA5 !important;
-    border: 1px solid #1A2D3D !important;
+    background-color: #1a1d24 !important;
+    color: #e8eaf0 !important;
+    border: 1px solid #343b48 !important;
 }
 .stDownloadButton > button:hover {
-    background-color: #243A4D !important;
+    border-color: #4e5568 !important;
 }
 
-/* --- Radio buttons --- */
+/* --- Radio buttons (model toggle) --- */
 .stRadio > div {
-    background-color: #141F2B !important;
-    border-radius: 6px !important;
+    background-color: #1a1d24 !important;
+    border-radius: 8px !important;
     padding: 8px !important;
-    border: 1px solid #1A2D3D !important;
+    border: 1px solid #2a2f3a !important;
 }
 .stRadio label {
-    color: #8AACBF !important;
+    color: #7a8099 !important;
 }
 
 /* --- Messages --- */
 .stSuccess {
-    background-color: rgba(93, 202, 165, 0.1) !important;
-    color: #5DCAA5 !important;
-    border: 1px solid rgba(93, 202, 165, 0.3) !important;
+    background-color: rgba(45, 212, 160, 0.1) !important;
+    color: #2dd4a0 !important;
+    border: 1px solid rgba(45, 212, 160, 0.3) !important;
+    border-radius: 8px !important;
 }
 .stWarning {
-    background-color: rgba(239, 159, 39, 0.1) !important;
-    color: #EF9F27 !important;
-    border: 1px solid rgba(239, 159, 39, 0.3) !important;
+    background-color: rgba(240, 165, 0, 0.12) !important;
+    color: #f0a500 !important;
+    border: 1px solid rgba(240, 165, 0, 0.35) !important;
+    border-radius: 8px !important;
 }
 .stException, .stError {
-    background-color: rgba(232, 89, 60, 0.1) !important;
-    color: #E8593C !important;
-    border: 1px solid rgba(232, 89, 60, 0.3) !important;
+    background-color: rgba(240, 96, 112, 0.1) !important;
+    color: #f06070 !important;
+    border: 1px solid rgba(240, 96, 112, 0.3) !important;
+    border-radius: 8px !important;
+}
+.stInfo {
+    background-color: rgba(91, 156, 246, 0.1) !important;
+    color: #5b9cf6 !important;
+    border: 1px solid rgba(91, 156, 246, 0.3) !important;
+    border-radius: 8px !important;
 }
 
 /* --- Progress bar --- */
 .stProgress > div > div > div {
-    background-color: #5DCAA5 !important;
+    background-color: #f0a500 !important;
+    border-radius: 3px !important;
 }
 
 /* --- Dividers --- */
 hr {
-    border-color: #1A2D3D !important;
+    border-color: #2a2f3a !important;
+}
+
+/* --- Checkboxes --- */
+.stCheckbox label {
+    color: #7a8099 !important;
+}
+
+/* --- Caption/small text --- */
+.stCaption, [data-testid="stCaption"] {
+    color: #4e5568 !important;
 }
 
 /* --- Scrollbar --- */
@@ -194,14 +274,14 @@ hr {
     height: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: #0F1923;
+    background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: #1A2D3D;
+    background: #343b48;
     border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #2A3D4D;
+    background: #4e5568;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -611,7 +691,7 @@ def get_latest_results(access_token, project_id):
 # --- UI: Auth page ---
 
 def show_auth_page():
-    st.title("Avily — Search Intelligence")
+    st.title("Aevilab")
     st.markdown("AI-powered search optimisation tools")
 
     if st.session_state.error:
@@ -852,7 +932,7 @@ def show_dashboard():
 
     # --- Rank Tracker main area ---
     if not projects:
-        st.title("Welcome to Avily")
+        st.title("Welcome to Aevilab")
         st.info("Create your first project to start tracking.")
         return
 

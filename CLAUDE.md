@@ -358,28 +358,40 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Mar 25 2026
 
-### Mar 25 2026 — "Midnight Observatory" visual overhaul
+### Mar 25 2026 — Aevilab design system (matched to prototype)
 
-**Safety tag**: `v3.0-pre-visual-overhaul` (pre-change state)
+**Safety tag**: `v3.0-pre-visual-overhaul` (pre-change state — reverts ALL visual changes)
 
 **Visual-only change. No logic, no database, no functionality changes.**
 
-**What changed:**
-1. `.streamlit/config.toml`: Dark navy theme (background #0F1923, secondary #141F2B, primary accent teal #5DCAA5, text #E8F0F4)
-2. `app.py`: Single `st.markdown()` CSS injection block after `st.set_page_config()` — ~150 lines of custom CSS targeting sidebar, metrics, buttons, inputs, expanders, tables, tabs, radio, messages, progress bars, dividers, scrollbar
-3. Display titles renamed: "Search Intelligence Suite" → "Avily — Search Intelligence", welcome page → "Welcome to Avily"
+**Replaces the earlier "Midnight Observatory" theme with the Aevilab prototype's exact design system.**
 
-**Design system — Midnight Observatory:**
-- Canvas: #0F1923 (deep navy), Surfaces: #141F2B (dark panels), Sidebar: #0A1219 (darkest)
-- Teal #5DCAA5: data accents, nav, good scores, links
-- Amber #EF9F27: CTA buttons, warnings, medium scores
-- Coral #E8593C: errors, low scores
-- Text: #E8F0F4 (primary), #8AACBF (secondary), #4A6A7E (muted)
-- Borders: #1A2D3D
+**What changed:**
+1. `.streamlit/config.toml`: Aevilab palette (bg #0d0f14, surface #1a1d24, accent #f0a500, text #e8eaf0)
+2. `app.py`: CSS injection block rewritten — ~250 lines matching `aevilab-prototype.html`. Google Fonts import (Syne headings, DM Sans body, DM Mono code). All component colours updated.
+3. Names: "Avily" → "Aevilab". Page title → "Aevilab". Icon → ⬡.
+
+**Naming:**
+- **Aevily** = umbrella brand (domain, top-level)
+- **Aevilab** = the Search Intelligence Suite app
+
+**Design system — Aevilab prototype:**
+- Background: #0d0f14, Sidebar: #111318, Surface: #1a1d24, Surface2: #21252e
+- Amber #f0a500: CTA buttons, progress bars, active tabs, focus borders
+- Green #2dd4a0: success messages
+- Red #f06070: errors, low scores
+- Blue #5b9cf6: info messages
+- Text: #e8eaf0 (primary), #7a8099 (muted), #4e5568 (muted2)
+- Borders: #2a2f3a (primary), #343b48 (secondary)
+- Fonts: Syne (headings), DM Sans (body), DM Mono (inputs/code)
+
+**Prototype reference**: `C:\Users\Pal\Downloads\aevilab-prototype.html` (Morten + his Claude built this)
 
 **Reversal**: `git checkout v3.0-pre-visual-overhaul -- .streamlit/config.toml app.py`
 
 **Files changed**: `.streamlit/config.toml`, `app.py` (CSS + titles only)
+
+**Next (separate session)**: Navigation restructure — sidebar tools → object-oriented nav (Pages, Opportunities, AI Workspace, Settings). See Aevilab UX Vision memory for full spec.
 
 ### Mar 25 2026 — Intent persistence fix + cross-screen visibility
 
