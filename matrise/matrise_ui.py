@@ -161,6 +161,7 @@ def build_matrise(project_id: str, token: str) -> list[dict]:
             "page_id": pid,
             "url": p.get("url", ""),
             "title": p.get("title") or "",
+            "intent": p.get("intent") or "",
             "status_code": p.get("status_code"),
             "last_crawled_at": p.get("last_crawled_at", ""),
             # AI scores
@@ -231,7 +232,7 @@ def _build_csv(rows: list[dict], domain: str) -> str:
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "URL", "Priority Score", "AEO Score", "SEO Score", "Content Score",
+        "URL", "Intent", "Priority Score", "AEO Score", "SEO Score", "Content Score",
         "Impressions", "Clicks", "Position", "CTR",
         "Sessions", "Engagement Rate",
         "Arbeidspakke", "Priority Action",
@@ -239,6 +240,7 @@ def _build_csv(rows: list[dict], domain: str) -> str:
     for r in rows:
         writer.writerow([
             r["url"],
+            r.get("intent", ""),
             r["priority_score"],
             r.get("aeo_readiness_score", ""),
             r.get("seo_score", ""),
@@ -311,22 +313,23 @@ def show_matrise(
     st.divider()
 
     # Column widths for the table
-    _COL_WIDTHS = [0.5, 3, 1, 1, 1, 1, 1.2, 0.8, 0.8, 0.8, 1.2, 1]
+    _COL_WIDTHS = [0.5, 2.5, 2, 1, 1, 1, 1, 1.2, 0.8, 0.8, 0.8, 1.2, 1]
 
     # Header row
     hdr = st.columns(_COL_WIDTHS)
     hdr[0].markdown("**#**")
     hdr[1].markdown("**URL**")
-    hdr[2].markdown("**Priority**")
-    hdr[3].markdown("**AEO**")
-    hdr[4].markdown("**SEO**")
-    hdr[5].markdown("**Content**")
-    hdr[6].markdown("**Impressions**")
-    hdr[7].markdown("**Clicks**")
-    hdr[8].markdown("**Pos**")
-    hdr[9].markdown("**Sessions**")
-    hdr[10].markdown("**Arbeidspakke**")
-    hdr[11].markdown("**Action**")
+    hdr[2].markdown("**Intent**")
+    hdr[3].markdown("**Priority**")
+    hdr[4].markdown("**AEO**")
+    hdr[5].markdown("**SEO**")
+    hdr[6].markdown("**Content**")
+    hdr[7].markdown("**Impressions**")
+    hdr[8].markdown("**Clicks**")
+    hdr[9].markdown("**Pos**")
+    hdr[10].markdown("**Sessions**")
+    hdr[11].markdown("**Arbeidspakke**")
+    hdr[12].markdown("**Action**")
 
     # Data rows
     for idx, r in enumerate(rows):
@@ -339,19 +342,20 @@ def show_matrise(
         cols = st.columns(_COL_WIDTHS)
         cols[0].markdown(f"{idx + 1}")
         cols[1].markdown(f"**{url_short}**")
-        cols[2].markdown(_priority_badge(r["priority_score"]))
-        cols[3].markdown(_score_badge(r.get("aeo_readiness_score")))
-        cols[4].markdown(_score_badge(r.get("seo_score")))
-        cols[5].markdown(_score_badge(r.get("content_quality_score")))
-        cols[6].markdown(_fmt(r.get("impressions"), "int"))
-        cols[7].markdown(_fmt(r.get("clicks"), "int"))
-        cols[8].markdown(_fmt(r.get("position"), "pos"))
-        cols[9].markdown(_fmt(r.get("sessions"), "int"))
+        cols[2].markdown(r.get("intent", "")[:40] or "\u2014")
+        cols[3].markdown(_priority_badge(r["priority_score"]))
+        cols[4].markdown(_score_badge(r.get("aeo_readiness_score")))
+        cols[5].markdown(_score_badge(r.get("seo_score")))
+        cols[6].markdown(_score_badge(r.get("content_quality_score")))
+        cols[7].markdown(_fmt(r.get("impressions"), "int"))
+        cols[8].markdown(_fmt(r.get("clicks"), "int"))
+        cols[9].markdown(_fmt(r.get("position"), "pos"))
+        cols[10].markdown(_fmt(r.get("sessions"), "int"))
         if r.get("arbeidspakke_at"):
-            cols[10].markdown(f"\u2705 {r['arbeidspakke_at'][:10]}")
+            cols[11].markdown(f"\u2705 {r['arbeidspakke_at'][:10]}")
         else:
-            cols[10].markdown("\u2014")
-        if cols[11].button("Generate", key=f"matrise_gen_{idx}"):
+            cols[11].markdown("\u2014")
+        if cols[12].button("Generate", key=f"matrise_gen_{idx}"):
             st.session_state["matrise_generate_url"] = r["url"]
             st.session_state["_tool_override"] = "AEO Agent"
             st.rerun()

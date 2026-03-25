@@ -374,12 +374,26 @@ def show_aeo_agent(
     stored_intent = selected_page.get("intent") or ""
     st.divider()
     st.subheader("Step 2: Set page intent")
+    # Pre-seed session_state so value= applies even on revisits
+    _intent_key = f"aeo_intent_input_{_page_key}"
+    if _intent_key not in st.session_state:
+        st.session_state[_intent_key] = stored_intent
     intent = st.text_input(
         "What is this page meant to achieve?",
-        value=stored_intent,
         placeholder='e.g. "Rank for \'best running shoes Norway\' and be cited by AI for product comparisons"',
-        key=f"aeo_intent_input_{_page_key}",
+        key=_intent_key,
     )
+    if selected_page.get("id") and intent != stored_intent:
+        if st.button("Save intent", key=f"btn_save_intent_{_page_key}"):
+            _db_patch(token, "pages",
+                      params={"id": f"eq.{selected_page['id']}"},
+                      body={"intent": intent if intent else None})
+            st.success("Intent saved.")
+            try:
+                from tracking.usage_tracker import log_usage_event
+                log_usage_event("intent_saved", event_detail="manual save", project_id=project_id)
+            except Exception:
+                pass
 
     # Step 3: Generate
     st.divider()

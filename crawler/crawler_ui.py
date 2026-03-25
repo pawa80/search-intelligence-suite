@@ -162,9 +162,10 @@ def _show_page_overview(project_ctx: dict) -> None:
             url = p.get("url", "")
             table_rows.append({
                 "URL": url[:60] + ("..." if len(url) > 60 else ""),
-                "Tittel": (p.get("title") or "—")[:50],
-                "Status": p.get("status_code", "—"),
-                "Sidetype": p.get("page_type") or "—",
+                "Tittel": (p.get("title") or "\u2014")[:50],
+                "Status": p.get("status_code", "\u2014"),
+                "Sidetype": p.get("page_type") or "\u2014",
+                "Intent": (p.get("intent") or "\u2014")[:60],
                 "Sist crawlet": crawl_fmt,
                 "Siste arbeidspakke": ap_dates.get(p.get("id"), "Aldri"),
             })

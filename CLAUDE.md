@@ -356,7 +356,25 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 24 2026
+Last session: Mar 25 2026
+
+### Mar 25 2026 — Intent persistence fix + cross-screen visibility
+
+**Safety tag**: `v2.9-intent-persistence-fix` (pre-change state)
+
+**4 fixes:**
+
+1. **Auto-save intent button** (`aeo/aeo_ui.py`): "Save intent" button appears below text input when intent differs from stored value. PATCHes `pages` table immediately. Save-on-Generate also kept (belt and braces).
+
+2. **Intent pre-fill fix** (`aeo/aeo_ui.py`): Used `st.session_state[key]` pre-seeding pattern instead of `value=` parameter. Streamlit ignores `value=` after first render — pre-seeding the session state before the widget renders ensures the stored intent appears even when revisiting a page.
+
+3. **Intent in Crawler overview** (`crawler/crawler_ui.py`): Added "Intent" column to "Crawlede sider" dataframe table. Shows first 60 chars or em dash if empty. Read-only.
+
+4. **Intent in Matrise** (`matrise/matrise_ui.py`): Added "Intent" column to priority table (header, data rows, CSV export). Shows first 40 chars or em dash. Column widths adjusted (URL narrowed from 3 to 2.5, Intent gets 2). CSV export includes Intent after URL.
+
+**Files changed**: `aeo/aeo_ui.py`, `crawler/crawler_ui.py`, `matrise/matrise_ui.py`, `CLAUDE.md`
+
+**No migrations, no schema changes, no new secrets, no new dependencies.**
 
 ### Mar 24 2026 — Re-enabled domain context + intent persistence
 
