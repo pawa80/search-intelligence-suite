@@ -118,11 +118,11 @@ Pal + Morten collaboration.
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
 
 ## Notes for Product Director
-- **M2-M4 + Matrise + Arbeidspakker Library all deployed**. Streamlit Cloud auto-deploys from master.
-- **Sidebar tools (6)**: Rank Tracker, Web Crawler, Data Sources, AEO Agent, Matrise, Arbeidspakker.
+- **All modules deployed**. Streamlit Cloud auto-deploys from master.
+- **Sidebar nav (6)**: Rank Tracker, Crawl, Matrix, AI Workspace, Data Sources, Settings. Full English UI since v3.1.
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
-- **AEO Agent depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + o4-mini arbeidspakke) — both in Streamlit Cloud secrets ✓
-- **Arbeidspakke v2.8** (Mar 15): Reasonable tier = structural audit (gpt-4.1-mini ~$0.02), Premium tier = full rewrite (Sonnet ~$0.11). Reasonable produces diagnostic audit with premium upsell gates on Sections 2+3. Model indicator in footer + history. Page selector scoped by project. Safety tags: `v2.8-pre-csv-fixes`, `v2.7-pre-keyword-mgmt`, `v2.6-pre-reasonable-restructure`, `v2.5-pre-model-swap`, `v2.4-pre-label-fix`, `v2.3-pre-page-selector-fix`, `v2.2-pre-o4mini-fix`, `v2.1-pre-model-toggle` (commit `99463eb`). Previous safety tag `v2.0-working-2026-03-12`.
+- **AI Workspace depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + gpt-4.1-mini playbook) — both in Streamlit Cloud secrets ✓
+- **Playbook v3.3** (Apr 2): Reasonable tier = structural audit (gpt-4.1-mini ~$0.02), Premium tier = full rewrite (Sonnet ~$0.11). Scannability formatting, checkbox→bullet fix, page slug in downloads. Safety tags: `v3.3-playbook-formatting`, `v3.2-colour-system`, `v3.1-nav-english`, `v3.0-priority0-schema-corrections`.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into GPT-4o-mini prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
