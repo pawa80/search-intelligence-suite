@@ -361,6 +361,18 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Apr 2 2026
 
+### Apr 2 2026 — Aevilab Colour System + Dark/Light Mode
+- Replaced hardcoded dark-only CSS with CSS custom property system (two complete palettes)
+- Dark mode: Morten's approved prototype palette (bg #0d0f14, amber #f0a500, green #2dd4a0, red #f06070, blue #5b9cf6, purple #a78bfa)
+- Light mode: high-contrast inverse (bg #f8f9fb, darker accent variants for readability)
+- Dark/light toggle in sidebar (`st.toggle("Dark mode")`, default dark, persists in session state)
+- 5-colour semantic system: amber (CTA/active), green (success), red (error/critical), blue (info/links), purple (tags/metadata)
+- Google Fonts: Syne (headings), DM Sans (body), DM Mono (code) — carried forward from v3.0
+- All Streamlit component overrides use `var(--name)` instead of hardcoded hex — theme-aware
+- Added `[data-testid="stHeader"]` background override, link colour (`a { color: var(--blue) }`)
+- Safety tag: `v3.2-colour-system`
+- Files changed: `app.py`, `.streamlit/config.toml`
+
 ### Apr 2 2026 — Navigation Restructure + English UI
 - Sidebar restructured: 6 nav items (Rank Tracker, Crawl, Matrix, AI Workspace, Data Sources, Settings)
 - Rank Tracker set as default landing page
