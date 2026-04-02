@@ -775,7 +775,7 @@ def show_dashboard():
         st.caption(user.email)
 
         # Tool selector — _tool_override can set the value BEFORE the widget renders
-        _tools = ["Rank Tracker", "Web Crawler", "Data Sources", "AEO Agent", "Matrise", "Arbeidspakker"]
+        _tools = ["Rank Tracker", "Crawl", "Matrix", "AI Workspace", "Data Sources", "Settings"]
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
         _prev_tool = st.session_state.get("active_tool")
@@ -804,22 +804,22 @@ def show_dashboard():
 
         if projects and st.session_state.selected_project_id:
             _pid = st.session_state.selected_project_id
-            with st.expander("Prosjektinnstillinger"):
+            with st.expander("Project Settings"):
                 _dc_val = st.session_state.get("domain_context", "")
                 _new_dc = st.text_area(
-                    "Domenekontekst",
+                    "Domain context",
                     value=_dc_val,
                     height=120,
-                    help="Beskriv merkevaren, målgruppe, tone og posisjonering. Denne konteksten brukes i alle arbeidspakker for dette prosjektet.",
+                    help="Describe the brand, target audience, tone and positioning. This context is used in all playbooks for this project.",
                     key=f"domain_context_input_{_pid}",
                 )
-                if st.button("Lagre", key=f"btn_save_domain_context_{_pid}"):
+                if st.button("Save", key=f"btn_save_domain_context_{_pid}"):
                     try:
                         db_request("PATCH", "projects", token,
                                    params={"id": f"eq.{st.session_state.selected_project_id}"},
                                    body={"domain_context": _new_dc if _new_dc else None})
                         st.session_state["domain_context"] = _new_dc
-                        st.success("Domenekontekst lagret.")
+                        st.success("Domain context saved.")
                         try:
                             from tracking.usage_tracker import log_usage_event
                             log_usage_event("domain_context_set",
@@ -828,7 +828,7 @@ def show_dashboard():
                         except Exception:
                             pass
                     except Exception as e:
-                        st.error(f"Feil ved lagring: {e}")
+                        st.error(f"Failed to save: {e}")
 
         with st.expander("Create New Project"):
             with st.form("create_project_form"):
@@ -864,7 +864,7 @@ def show_dashboard():
             st.rerun()
 
     # --- Route to selected tool ---
-    if st.session_state.get("active_tool") == "Web Crawler":
+    if st.session_state.get("active_tool") == "Crawl":
         # Pass project context to crawler (if a project is selected)
         project_ctx = None
         if st.session_state.selected_project_id and projects:
@@ -872,6 +872,34 @@ def show_dashboard():
             if p:
                 project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_crawler(project_ctx=project_ctx)
+        return
+
+    if st.session_state.get("active_tool") == "Matrix":
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_matrise(
+            project_ctx=project_ctx,
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
+        return
+
+    if st.session_state.get("active_tool") == "AI Workspace":
+        project_ctx = None
+        if st.session_state.selected_project_id and projects:
+            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
+            if p:
+                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
+        show_aeo_agent(
+            project_ctx=project_ctx,
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
         return
 
     if st.session_state.get("active_tool") == "Data Sources":
@@ -888,46 +916,9 @@ def show_dashboard():
         )
         return
 
-    if st.session_state.get("active_tool") == "AEO Agent":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
-        show_aeo_agent(
-            project_ctx=project_ctx,
-            token=token,
-            workspace_id=workspace["id"],
-            user_id=str(user.id),
-        )
-        return
-
-    if st.session_state.get("active_tool") == "Matrise":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
-        show_matrise(
-            project_ctx=project_ctx,
-            token=token,
-            workspace_id=workspace["id"],
-            user_id=str(user.id),
-        )
-        return
-
-    if st.session_state.get("active_tool") == "Arbeidspakker":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
-        show_arbeidspakker_library(
-            project_ctx=project_ctx,
-            token=token,
-            workspace_id=workspace["id"],
-            user_id=str(user.id),
-        )
+    if st.session_state.get("active_tool") == "Settings":
+        st.header("Settings")
+        st.info("Settings page coming soon.")
         return
 
     # --- Rank Tracker main area ---

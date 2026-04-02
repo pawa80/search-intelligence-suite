@@ -106,6 +106,7 @@ def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
     return _db_get(token, "pages", {
         "select": "*",
         "project_id": f"eq.{project_id}",
+        "status": "eq.active",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",
     })
@@ -146,7 +147,7 @@ def _format_arbeidspakke(recs: dict, context_block: str, url: str = "",
                          title: str = "", h1: str = "", intent: str = "") -> str:
     """Format recommendation JSON into readable markdown arbeidspakke."""
     lines = []
-    lines.append("# Arbeidspakke — AEO Audit Report\n")
+    lines.append("# Playbook — AEO Audit Report\n")
 
     # Page identity block
     if url:
@@ -233,10 +234,10 @@ def show_aeo_agent(
     user_id: str,
 ) -> None:
     """Main entry point for the AEO Agent UI."""
-    st.title("AEO Agent")
+    st.title("AI Workspace")
 
     if not project_ctx:
-        st.warning("Select a project first to use the AEO Agent.")
+        st.warning("Select a project first to use the AI Workspace.")
         return
 
     openai_key = _get_secret("OPENAI_API_KEY")
@@ -313,10 +314,10 @@ def show_aeo_agent(
     default_idx = _PAGE_TYPES.index(stored_type) if stored_type in _PAGE_TYPES else 0
 
     selected_page_type = st.selectbox(
-        "Sidetype",
+        "Page type",
         _PAGE_TYPES,
         index=default_idx,
-        format_func=lambda x: "Velg sidetype..." if x == "" else x,
+        format_func=lambda x: "Select page type..." if x == "" else x,
         key=f"aeo_page_type_select_{_page_key}",
     )
 
@@ -397,7 +398,7 @@ def show_aeo_agent(
 
     # Step 3: Generate
     st.divider()
-    st.subheader("Step 3: Generate Arbeidspakke")
+    st.subheader("Step 3: Generate Playbook")
 
     # Model selection toggle
     model_tier = st.radio(
@@ -413,7 +414,7 @@ def show_aeo_agent(
         key="aeo_model_tier",
     )
 
-    if st.button("Generate Arbeidspakke", type="primary", key="btn_generate_arbeidspakke",
+    if st.button("Generate Playbook", type="primary", key="btn_generate_arbeidspakke",
                   disabled=not selected_page.get("url")):
         url = selected_page["url"]
 
@@ -441,7 +442,7 @@ def show_aeo_agent(
         selected_intents = [intent] if intent else []
 
         _model_label = "o4-mini" if model_tier == "cheap" else "Claude Sonnet"
-        with st.spinner(f"Generating arbeidspakke with {_model_label}..."):
+        with st.spinner(f"Generating playbook with {_model_label}..."):
             recs = generate_recommendations(
                 title=analysis.title,
                 full_content=analysis.full_content,
@@ -485,11 +486,11 @@ def show_aeo_agent(
                 url, intent or "", arbeidspakke_md, context,
             )
             if saved:
-                st.success("Arbeidspakke saved to project.")
+                st.success("Playbook saved to project.")
             else:
-                st.warning("Arbeidspakke generated but failed to save to database.")
+                st.warning("Playbook generated but failed to save to database.")
         else:
-            st.info("Manual URL — arbeidspakke not saved (no page_id).")
+            st.info("Manual URL — playbook not saved (no page_id).")
 
     # Display output
     if st.session_state.get("aeo_arbeidspakke"):
@@ -500,7 +501,7 @@ def show_aeo_agent(
         st.download_button(
             "Download as .md",
             data=st.session_state["aeo_arbeidspakke"],
-            file_name=f"arbeidspakke-{datetime.now().strftime('%Y%m%d-%H%M')}.md",
+            file_name=f"playbook-{datetime.now().strftime('%Y%m%d-%H%M')}.md",
             mime="text/markdown",
             key="btn_download_arbeidspakke",
         )
@@ -510,7 +511,7 @@ def show_aeo_agent(
         previous = _load_arbeidspakker(token, project_id, selected_page["id"])
         if previous:
             st.divider()
-            with st.expander(f"Previous arbeidspakker for this page ({len(previous)})"):
+            with st.expander(f"Previous playbooks for this page ({len(previous)})"):
                 for ap in previous:
                     _snap = ap.get("context_snapshot") or {}
                     if isinstance(_snap, str):

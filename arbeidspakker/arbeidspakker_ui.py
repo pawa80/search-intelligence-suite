@@ -73,10 +73,10 @@ def show_arbeidspakker_library(
     user_id: str,
 ) -> None:
     """Entry point for the Arbeidspakker Library UI."""
-    st.title("Arbeidspakker")
+    st.title("Playbooks")
 
     if not project_ctx:
-        st.warning("Select a project first to view arbeidspakker.")
+        st.warning("Select a project first to view playbooks.")
         return
 
     project_id = project_ctx["id"]
@@ -84,11 +84,11 @@ def show_arbeidspakker_library(
 
     st.info(f"Project: **{project_ctx['name']}** \u00b7 Domain: **{domain}**")
 
-    with st.spinner("Loading arbeidspakker\u2026"):
+    with st.spinner("Loading playbooks\u2026"):
         rows = _load_arbeidspakker(project_id, token)
 
     if not rows:
-        st.info("No arbeidspakker found for this project. Generate one via the AEO Agent.")
+        st.info("No playbooks found for this project. Generate one via the AI Workspace.")
         return
 
     # Summary metrics
@@ -97,7 +97,7 @@ def show_arbeidspakker_library(
     latest_date = rows[0].get("generated_at", "")[:10] if rows else "\u2014"
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total arbeidspakker", total)
+    c1.metric("Total playbooks", total)
     c2.metric("Unique pages", unique_urls)
     c3.metric("Latest generated", latest_date)
 
@@ -127,21 +127,21 @@ def show_arbeidspakker_library(
             btn_cols[0].download_button(
                 "Download .md",
                 data=md_content,
-                file_name=f"arbeidspakke-{safe_url}.md",
+                file_name=f"playbook-{safe_url}.md",
                 mime="text/markdown",
                 key=f"ap_dl_{idx}",
             )
             # Generate new button
             if btn_cols[1].button("Re-generate", key=f"ap_gen_{idx}"):
                 st.session_state["matrise_generate_url"] = r.get("url", "")
-                st.session_state["_tool_override"] = "AEO Agent"
+                st.session_state["_tool_override"] = "AI Workspace"
                 st.rerun()
 
         if intent:
             st.caption(f"Intent: {intent}")
 
         # Expandable full content
-        with st.expander("View arbeidspakke", expanded=False):
+        with st.expander("View playbook", expanded=False):
             st.markdown(md_content)
 
         st.divider()

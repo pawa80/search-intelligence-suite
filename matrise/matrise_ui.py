@@ -100,6 +100,7 @@ def build_matrise(project_id: str, token: str) -> list[dict]:
     pages = _db_get(token, "pages", {
         "select": "id,url,title,status_code,last_crawled_at",
         "project_id": f"eq.{project_id}",
+        "status": "eq.active",
         "last_crawled_at": "not.is.null",
         "order": "url.asc",
     })
@@ -235,7 +236,7 @@ def _build_csv(rows: list[dict], domain: str) -> str:
         "URL", "Intent", "Priority Score", "AEO Score", "SEO Score", "Content Score",
         "Impressions", "Clicks", "Position", "CTR",
         "Sessions", "Engagement Rate",
-        "Arbeidspakke", "Priority Action",
+        "Playbook", "Priority Action",
     ])
     for r in rows:
         writer.writerow([
@@ -268,10 +269,10 @@ def show_matrise(
     user_id: str,
 ) -> None:
     """Entry point for the Matrise UI."""
-    st.title("Matrise")
+    st.title("Matrix")
 
     if not project_ctx:
-        st.warning("Select a project first to view the Matrise.")
+        st.warning("Select a project first to view the Matrix.")
         return
 
     project_id = project_ctx["id"]
@@ -296,7 +297,7 @@ def show_matrise(
     c1.metric("Pages in matrix", total)
     c2.metric("With AI scores", with_ai)
     c3.metric("With GSC data", with_gsc)
-    c4.metric("With arbeidspakke", with_ap)
+    c4.metric("With playbook", with_ap)
 
     # CSV export
     csv_data = _build_csv(rows, domain)
@@ -328,7 +329,7 @@ def show_matrise(
     hdr[8].markdown("**Clicks**")
     hdr[9].markdown("**Pos**")
     hdr[10].markdown("**Sessions**")
-    hdr[11].markdown("**Arbeidspakke**")
+    hdr[11].markdown("**Playbook**")
     hdr[12].markdown("**Action**")
 
     # Data rows
@@ -357,7 +358,7 @@ def show_matrise(
             cols[11].markdown("\u2014")
         if cols[12].button("Generate", key=f"matrise_gen_{idx}"):
             st.session_state["matrise_generate_url"] = r["url"]
-            st.session_state["_tool_override"] = "AEO Agent"
+            st.session_state["_tool_override"] = "AI Workspace"
             st.rerun()
 
         # Expandable detail

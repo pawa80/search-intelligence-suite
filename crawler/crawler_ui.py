@@ -107,6 +107,7 @@ def _load_page_overview(token: str, project_id: str) -> list[dict]:
         return db_request("GET", "pages", token,
                           params={"select": "id,url,title,status_code,page_type,last_crawled_at",
                                   "project_id": f"eq.{project_id}",
+                                  "status": "eq.active",
                                   "last_crawled_at": "not.is.null",
                                   "order": "url.asc"})
     except Exception:
@@ -123,7 +124,7 @@ def _show_page_overview(project_ctx: dict) -> None:
     pages = _load_page_overview(token, project_id)
 
     if not pages:
-        st.caption("Ingen sider crawlet ennå. Start en crawl nedenfor.")
+        st.caption("No pages crawled yet. Start a crawl below.")
         return
 
     # Track usage
@@ -147,8 +148,8 @@ def _show_page_overview(project_ctx: dict) -> None:
     except (ValueError, AttributeError):
         last_crawl_fmt = last_crawl[:10] if last_crawl else "—"
 
-    with st.expander(f"Crawlede sider ({len(pages)})", expanded=True):
-        st.caption(f"{len(pages)} sider crawlet | Sist crawl: {last_crawl_fmt}")
+    with st.expander(f"Crawled pages ({len(pages)})", expanded=True):
+        st.caption(f"{len(pages)} pages crawled | Last crawl: {last_crawl_fmt}")
 
         table_rows = []
         for p in pages:
@@ -162,12 +163,12 @@ def _show_page_overview(project_ctx: dict) -> None:
             url = p.get("url", "")
             table_rows.append({
                 "URL": url[:60] + ("..." if len(url) > 60 else ""),
-                "Tittel": (p.get("title") or "\u2014")[:50],
+                "Title": (p.get("title") or "\u2014")[:50],
                 "Status": p.get("status_code", "\u2014"),
-                "Sidetype": p.get("page_type") or "\u2014",
+                "Page Type": p.get("page_type") or "\u2014",
                 "Intent": (p.get("intent") or "\u2014")[:60],
-                "Sist crawlet": crawl_fmt,
-                "Siste arbeidspakke": ap_dates.get(p.get("id"), "Aldri"),
+                "Last Crawled": crawl_fmt,
+                "Last Playbook": ap_dates.get(p.get("id"), "Never"),
             })
 
         st.dataframe(table_rows, use_container_width=True, hide_index=True)
@@ -175,7 +176,7 @@ def _show_page_overview(project_ctx: dict) -> None:
 
 def show_crawler(project_ctx: dict | None = None):
     """Main entry point for the crawler UI."""
-    st.title("Web Crawler")
+    st.title("Crawl")
 
     # Project context banner
     if project_ctx:
@@ -498,6 +499,7 @@ def _load_crawled_pages(token: str, project_id: str) -> list[dict]:
         return db_request("GET", "pages", token,
                           params={"select": "id,project_id,url,status_code,title,h1,meta_description,word_count,in_sitemap,canonical_url,depth",
                                   "project_id": f"eq.{project_id}",
+                                  "status": "eq.active",
                                   "last_crawled_at": "not.is.null",
                                   "order": "url.asc"})
     except Exception:
@@ -740,7 +742,7 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
                 "Content Score": _score_badge(a.get("content_quality_score")),
                 "Priority Action": a.get("priority_action", "—"),
                 "Last Analysed": (a.get("analysed_at") or "")[:10],
-                "Siste arbeidspakke": arbeidspakke_dates.get(page_id, "Aldri"),
+                "Last Playbook": arbeidspakke_dates.get(page_id, "Never"),
             })
 
         # Sort by SEO score ascending (worst first)

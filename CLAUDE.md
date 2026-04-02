@@ -46,12 +46,13 @@ Pal + Morten collaboration.
 - `projects` (id, workspace_id, name, domain, created_at, domain_context) — RLS via workspace membership. `domain_context` is universal brand info injected into all arbeidspakker.
 - `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
 - `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
-- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at, page_type, intent) — UPSERT on (project_id, url). Written by crawler after crawl completes. `page_type` and `intent` set by AEO Agent UI.
+- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at, page_type, intent, status, language) — UPSERT on (project_id, url). Written by crawler after crawl completes. `page_type` and `intent` set by AEO Agent UI. `status` TEXT NOT NULL DEFAULT 'active' — values: active, redirected, dead, archived. Pages are NEVER deleted — status is set to 'archived' instead. `language` TEXT — ISO 639-1 content language code (e.g. 'nb', 'en', 'fr'). Set by crawler or user. NOTE: DELETE RLS policy has been removed.
 - `google_connections` (id, workspace_id, user_id, google_refresh_token, google_token_expiry, gsc_property, ga4_property_id, ga4_property_name, connected_at) — UNIQUE on (workspace_id, user_id). RLS via `user_id = auth.uid()`.
 - `gsc_data` (id, project_id, url, clicks, impressions, ctr, position, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, url, date_range_start). RLS via `user_owns_project()`.
 - `ga_data` (id, project_id, page_path, sessions, engaged_sessions, engagement_rate, avg_engagement_time, bounce_rate, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, page_path, date_range_start). RLS via `user_owns_project()`.
 - `crawl_ai_analysis` (id, page_id FK→pages, project_id FK→projects, seo_score 0-100, aeo_readiness_score 0-100, content_quality_score 0-100, issues JSONB, priority_action, action_plan, ai_model, analysed_at, created_at) — UNIQUE on (page_id). RLS via `user_owns_project()`.
-- `arbeidspakker` (id, page_id FK→pages, project_id FK→projects, url, intent, arbeidspakke_markdown, context_snapshot JSONB, generated_at) — RLS via `user_owns_project()`.
+- `arbeidspakker` (id, page_id FK→pages, project_id FK→projects, url, intent, arbeidspakke_markdown, context_snapshot JSONB, generated_at, language) — RLS via `user_owns_project()`. `language` TEXT — the language the playbook was generated in. Matches page language at generation time.
+- `page_url_history` (id, page_id FK→pages, url, status, detected_at, transition_type, created_at) — URL identity graph. Append-only. Records URL transitions (301s, 404s, merges). RLS via `user_owns_project()` through page→project chain. No UPDATE or DELETE policies.
 
 ### RPC Functions
 - `create_workspace_for_user(ws_name text, ws_user_id uuid)` — SECURITY DEFINER, creates workspace + membership atomically
@@ -72,7 +73,9 @@ Pal + Morten collaboration.
 - `workspace_members` SELECT: `user_id = auth.uid()`
 - `geo_check_results` INSERT: `user_owns_project(project_id)` (SECURITY DEFINER)
 - `geo_check_results` SELECT: `user_owns_project(project_id)` (SECURITY DEFINER)
-- `pages` INSERT/SELECT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
+- `pages` INSERT/SELECT/UPDATE: `user_owns_project(project_id)` (SECURITY DEFINER). DELETE: **REMOVED** — pages are never deleted, only archived
+- `page_url_history` SELECT: `user_owns_project()` via page→project chain
+- `page_url_history` INSERT: `user_owns_project()` via page→project chain
 - `google_connections` SELECT/INSERT/UPDATE/DELETE: `user_id = auth.uid()` (direct)
 - `gsc_data` SELECT/INSERT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
 - `ga_data` SELECT/INSERT/UPDATE/DELETE: `user_owns_project(project_id)` (SECURITY DEFINER)
@@ -356,7 +359,29 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Mar 25 2026
+Last session: Apr 2 2026
+
+### Apr 2 2026 — Navigation Restructure + English UI
+- Sidebar restructured: 6 nav items (Rank Tracker, Crawl, Matrix, AI Workspace, Data Sources, Settings)
+- Rank Tracker set as default landing page
+- Full English UI: Matrise→Matrix, Arbeidspakke→Playbook, AEO Agent→AI Workspace, Web Crawler→Crawl
+- Norwegian UI labels retired (Prosjektinnstillinger, Domenekontekst, Lagre, Sidetype, Crawlede sider, etc.)
+- DB table names unchanged (still `arbeidspakker`, `matrise` module folder, etc.)
+- `_tool_override` references updated: Matrix and Playbooks Generate buttons now route to "AI Workspace"
+- Settings page: minimal placeholder (st.header + st.info)
+- Standalone Arbeidspakker Library removed from nav (playbooks still accessible via AI Workspace history + Matrix Generate buttons)
+- Safety tag: `v3.1-nav-english`
+- Files changed: `app.py`, `crawler/crawler_ui.py`, `aeo/aeo_ui.py`, `matrise/matrise_ui.py`, `arbeidspakker/arbeidspakker_ui.py`
+
+### Apr 2 2026 — Priority 0 Schema Corrections + Archive-Not-Delete
+- Migration: Added `status` column to pages (active/redirected/dead/archived), removed DELETE policy — pages are never deleted, only archived
+- Migration: Created `page_url_history` table for URL identity resolution (append-only, tracks 301s/404s/merges)
+- Migration: Added `language` to pages (ISO 639-1, set by crawler or user) and arbeidspakker (language at generation time)
+- Safety tags: `v3.0-priority0-schema-corrections` (pre-schema), `v3.0-priority0-python-archive` (pre-Python)
+- PostgREST schema cache reloaded
+- Python: Added `status=eq.active` filter to all 4 user-facing page queries (no DELETE operations existed to replace)
+- Intentionally unfiltered: `google_data/datasources_ui.py` `_load_pages()` (internal URL matching lookup), crawler UPSERT, AEO PATCH operations
+- Files changed: `crawler/crawler_ui.py`, `aeo/aeo_ui.py`, `matrise/matrise_ui.py`
 
 ### Mar 25 2026 — Aevilab design system (matched to prototype)
 
