@@ -361,6 +361,15 @@ When adding new tables that reference `projects` or `workspaces`:
 ## Rolling Handover
 Last session: Apr 2 2026
 
+### Apr 2 2026 — Playbook Formatting Fixes
+- Sonnet prompt: added scannability rule (blank line before every bold item) + checklist format rule (bullets not checkboxes)
+- Section 6 instruction changed from `- [ ]` checkbox syntax to bullet points
+- Checkbox characters (☐, □, [ ], [x]) replaced with bullets/checkmarks in display code (`_clean_playbook_md`)
+- Download filename now includes page slug: `playbook-{slug}-{date}.md` (e.g. `playbook-for-skoler-2026-04-02.md`)
+- Prompt instructions: "arbeidspakke" / "work package" → "playbook" / "AEO playbook" (output language logic unchanged)
+- Safety tag: `v3.3-playbook-formatting`
+- Files changed: `aeo/recommender.py`, `aeo/aeo_ui.py`
+
 ### Apr 2 2026 — Aevilab Colour System + Dark/Light Mode
 - Replaced hardcoded dark-only CSS with CSS custom property system (two complete palettes)
 - Dark mode: Morten's approved prototype palette (bg #0d0f14, amber #f0a500, green #2dd4a0, red #f06070, blue #5b9cf6, purple #a78bfa)

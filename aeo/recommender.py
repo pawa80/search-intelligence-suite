@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 AEO Audit Agent - Recommendations Engine
 
-Uses Anthropic Claude Sonnet 4 to generate complete arbeidspakker (work packages)
+Uses Anthropic Claude Sonnet 4 to generate complete AEO playbooks
 with full page rewrites, FAQ replacements, JSON-LD schema, and SEO improvements.
 Output language matches the page content language.
 """
@@ -187,10 +187,10 @@ class RecommendationResult:
 
 
 def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None, model_tier="expensive"):
-    """Generate a complete arbeidspakke with full page rewrites matching the gold standard.
+    """Generate a complete AEO playbook with full page rewrites matching the gold standard.
 
     v2.5: Model toggle — Claude Sonnet 4 (expensive, ~$0.11/gen) or OpenAI gpt-4.1-mini (cheap, ~$0.02/gen).
-    Outputs a complete 6-section arbeidspakke in the language of the page content.
+    Outputs a complete 6-section playbook in the language of the page content.
     Full rewrites — no snippets, no suggestions. Paste-ready for CMS.
     """
 
@@ -302,7 +302,7 @@ The following is universal context about this domain/brand. Use this information
 
     # --- Build system prompt (methodology + task instructions) ---
     system_prompt = f"""CRITICAL — OUTPUT LANGUAGE:
-Detect the language of the PAGE CONTENT provided in the user message. Write the ENTIRE work package in that same language.
+Detect the language of the PAGE CONTENT provided in the user message. Write the ENTIRE playbook in that same language.
 
 - If the page content is in English, write everything in English (including section headers, analysis, rewrites, FAQ, checklist — everything).
 - If the page content is in Norwegian, write everything in Norwegian.
@@ -313,16 +313,16 @@ Do NOT default to Norwegian. Do NOT mix languages. The page content language is 
 
 ---
 
-You are an expert AEO (Answer Engine Optimization) consultant producing a complete work package for a client.
+You are an expert AEO (Answer Engine Optimization) consultant producing a complete AEO playbook for a client.
 {page_type_section}
 {domain_context_section}
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}
 
-## YOUR TASK — PRODUCE A COMPLETE WORK PACKAGE
+## YOUR TASK — PRODUCE A COMPLETE AEO PLAYBOOK
 
-Write the work package as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
+Write the playbook as clean markdown. Do NOT wrap it in code fences. Do NOT output JSON.
 
 Start with a **Key findings** paragraph (2-4 sentences) that summarises the biggest gap between the page's potential and current performance. If GSC/GA data is available in the context, reference the specific numbers (impressions, clicks, position, CTR, engagement time). If no suite data is available, say so once and proceed.
 
@@ -423,7 +423,7 @@ Note any links on the page that point to wrong-language versions (e.g. /en/ link
 
 ### Section 6: Implementation checklist
 
-Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
+Create a checklist with bullet points grouped by category:
 - Content (body text replacement, FAQ replacement, FAQ heading change)
 - Technical (FAQ schema markup, H2 tags, publication date)
 - SEO (meta title, meta description, internal links, link audit fixes)
@@ -436,8 +436,12 @@ Create a checklist with checkbox markdown (`- [ ]`) grouped by category:
 2. PRESERVE THE PAGE'S VOICE. Read the tone of the existing content and match it. If it's conversational, stay conversational. If it's formal, stay formal.
 3. BE SPECIFIC. Reference actual content from the page. Quote real text. Use real URLs found in the content for internal links.
 4. The JSON-LD in Section 4 must be syntactically valid and contain the EXACT question/answer text from Section 3.
-5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the work package.
-6. REMEMBER: Write in the SAME LANGUAGE as the page content. English page = English output. Norwegian page = Norwegian output."""
+5. Do NOT add explanatory meta-commentary about what you're doing. Just produce the AEO playbook.
+6. REMEMBER: Write in the SAME LANGUAGE as the page content. English page = English output. Norwegian page = Norwegian output.
+7. FORMAT FOR SCANNABILITY. Every bold item (**like this**) must be preceded by a blank line. Each recommendation, finding, or action item starts on its own line. The reader should be able to scan the document by reading only the bold items and understand the full structure. Never run bold items together in a wall of text.
+
+## CHECKLIST FORMAT RULE
+In Section 6 (Implementation checklist), use bullet points (- ) NOT checkbox syntax (- [ ]). Checkboxes render as non-interactive boxes in the output and confuse users."""
 
     # --- Build user message (page-specific data) ---
     user_message = f"""{context_block}
@@ -551,7 +555,7 @@ REMINDER: The page content below determines the output language. Detect its lang
 
     except Exception as e:
         return {
-            "summary": f"Error generating arbeidspakke: {str(e)}",
+            "summary": f"Error generating playbook: {str(e)}",
             "intelligence_applied": [],
             "critical_issues": [],
             "action_plan": [],

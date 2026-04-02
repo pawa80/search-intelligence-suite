@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from urllib.parse import urlparse
 import streamlit as st
 
 from aeo.context_builder import build_page_context, build_context_block
@@ -141,6 +142,19 @@ def _save_arbeidspakke(
         "context_snapshot": json.dumps(context),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     })
+
+
+def _clean_playbook_md(md: str) -> str:
+    """Post-process playbook markdown: replace non-interactive checkboxes with bullets."""
+    md = md.replace("☐ ", "• ")
+    md = md.replace("□ ", "• ")
+    md = md.replace("[ ] ", "• ")
+    md = md.replace("[x] ", "✓ ")
+    md = md.replace("[X] ", "✓ ")
+    md = md.replace("- [ ] ", "- ")
+    md = md.replace("- [x] ", "- ✓ ")
+    md = md.replace("- [X] ", "- ✓ ")
+    return md
 
 
 def _format_arbeidspakke(recs: dict, context_block: str, url: str = "",
@@ -495,13 +509,16 @@ def show_aeo_agent(
     # Display output
     if st.session_state.get("aeo_arbeidspakke"):
         st.divider()
-        st.markdown(st.session_state["aeo_arbeidspakke"])
+        st.markdown(_clean_playbook_md(st.session_state["aeo_arbeidspakke"]))
 
-        # Download
+        # Download — filename includes page slug
+        _dl_url = selected_page.get("url", "")
+        _dl_path = urlparse(_dl_url).path.strip("/").split("/")[-1] if _dl_url else ""
+        _dl_slug = _dl_path.replace(".", "-")[:40] if _dl_path else "page"
         st.download_button(
             "Download as .md",
             data=st.session_state["aeo_arbeidspakke"],
-            file_name=f"playbook-{datetime.now().strftime('%Y%m%d-%H%M')}.md",
+            file_name=f"playbook-{_dl_slug}-{datetime.now().strftime('%Y-%m-%d')}.md",
             mime="text/markdown",
             key="btn_download_arbeidspakke",
         )
@@ -523,5 +540,5 @@ def show_aeo_agent(
                     _mlabel = " — 🚀 Sonnet" if _mtier == "expensive" else " — 💰 o4-mini" if _mtier == "cheap" else ""
                     st.markdown(f"**{ap.get('generated_at', '')[:16]}**{_mlabel} — Intent: {ap.get('intent', '—')}")
                     with st.expander("View", expanded=False):
-                        st.markdown(ap.get("arbeidspakke_markdown", ""))
+                        st.markdown(_clean_playbook_md(ap.get("arbeidspakke_markdown", "")))
                     st.caption("---")
