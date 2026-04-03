@@ -881,7 +881,7 @@ def show_dashboard():
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
         _prev_tool = st.session_state.get("active_tool")
-        tool = st.selectbox("Tool", _tools, key="active_tool")
+        tool = st.radio("Tool", _tools, key="active_tool", label_visibility="collapsed")
         if tool != _prev_tool:
             try:
                 from tracking.usage_tracker import log_usage_event
