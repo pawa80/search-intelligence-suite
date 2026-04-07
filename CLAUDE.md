@@ -418,7 +418,14 @@ Last session: Apr 7 2026
 - All wrapped in `try/finally` — guaranteed unlock on error. Warning banner shown when locked.
 - Safety tag: `v3.8-ui-lock-during-operations`.
 
-**Backlog progress**: Session 1 plan (#35+#31+#19+#25+#30) all done, plus #26, #19v2, crawler persistence. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#28/#15+#32+#33+#34+R:A.
+**R:C AI intent suggestion helper** (commit `8069de4`):
+- New `aeo/intent_helper.py`: calls Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) to generate 8-12 intent phrases from page title, type, domain context, and meta description. ~$0.005/call, <3s response.
+- AI Workspace Step 2 rewritten: blank text input → selectable checkboxes (auto-generated on page select) + custom text area. Status shows "Selected: N intents — ready to audit!" (green at 3+).
+- Selected intents combined as comma-separated string for prompt injection and `pages.intent` persistence. Previously saved intents pre-check matching boxes on revisit.
+- Suggestion cache: `aeo_intent_suggestions_{page_key}` in session state, cleared on project/page switch. Respects UI lock.
+- Safety tag: `v3.9-intent-suggestion-helper`.
+
+**Backlog progress**: Session 1 plan (#35+#31+#19+#25+#30) all done, plus #26, #19v2, R:C, crawler persistence. Next: Session 2 = #9 (Sonnet prompt improvements from AEO research). Session 3 = #27+#28/#15+#32+#33+#34+R:A.
 
 ### Apr 3 2026 — Sidebar nav: selectbox → radio (v3.4)
 - Replaced `st.selectbox` with `st.radio` + `label_visibility="collapsed"` for sidebar tool selector
