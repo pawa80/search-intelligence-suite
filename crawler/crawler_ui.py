@@ -105,7 +105,7 @@ def _load_page_overview(token: str, project_id: str) -> list[dict]:
     from app import db_request
     try:
         return db_request("GET", "pages", token,
-                          params={"select": "id,url,title,status_code,page_type,last_crawled_at",
+                          params={"select": "id,url,title,status_code,page_type,intent,h1,meta_description,canonical_url,in_sitemap,depth,last_crawled_at",
                                   "project_id": f"eq.{project_id}",
                                   "status": "eq.active",
                                   "last_crawled_at": "not.is.null",
@@ -165,8 +165,13 @@ def _show_page_overview(project_ctx: dict) -> None:
                 "URL": url[:60] + ("..." if len(url) > 60 else ""),
                 "Title": (p.get("title") or "\u2014")[:50],
                 "Status": p.get("status_code", "\u2014"),
+                "H1": (p.get("h1") or "\u2014")[:40],
+                "Meta Desc": (p.get("meta_description") or "\u2014")[:40],
+                "Canonical": (p.get("canonical_url") or "\u2014")[:40],
+                "In Sitemap": "Yes" if p.get("in_sitemap") else "No" if p.get("in_sitemap") is False else "\u2014",
+                "Depth": p.get("depth") if p.get("depth") is not None else "\u2014",
                 "Page Type": p.get("page_type") or "\u2014",
-                "Intent": (p.get("intent") or "\u2014")[:60],
+                "Intent": (p.get("intent") or "\u2014")[:40],
                 "Last Crawled": crawl_fmt,
                 "Last Playbook": ap_dates.get(p.get("id"), "Never"),
             })
