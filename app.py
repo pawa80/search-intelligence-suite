@@ -109,6 +109,12 @@ _LIGHT_VARS = """
 """
 
 _AEVILAB_COMPONENTS = """
+/* ============================================================
+   WCAG AA compliance floor: 4.5:1 normal text, 3:1 large text.
+   Every colour pairing below has been checked against both
+   dark-mode and light-mode variable sets.
+   ============================================================ */
+
 /* --- Global typography --- */
 html, body, [class*="css"] {
     font-family: 'DM Sans', sans-serif !important;
@@ -134,7 +140,7 @@ code, pre, .stCode,
 }
 [data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] label {
-    color: var(--text-muted) !important;
+    color: var(--text-primary) !important;
     font-size: 13px !important;
 }
 [data-testid="stSidebar"] h1,
@@ -142,19 +148,23 @@ code, pre, .stCode,
 [data-testid="stSidebar"] h3 {
     color: var(--text-primary) !important;
 }
-[data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stRadio label {
+/* Sidebar widget header labels (uppercase section titles) */
+[data-testid="stSidebar"] .stSelectbox > label,
+[data-testid="stSidebar"] .stRadio > label {
     font-size: 11px !important;
     text-transform: uppercase !important;
     letter-spacing: 0.06em !important;
     color: var(--text-muted) !important;
 }
-/* Nav radio options must be clearly readable */
+/* Nav radio options — primary navigation, must be full contrast */
 [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
     color: var(--text-primary) !important;
     font-size: 13px !important;
     text-transform: none !important;
     letter-spacing: normal !important;
+}
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label:hover {
+    color: var(--text-primary) !important;
 }
 
 /* --- Main area --- */
@@ -190,6 +200,7 @@ code, pre, .stCode,
     font-family: 'Syne', sans-serif !important;
     font-weight: 700 !important;
     color: var(--text-primary) !important;
+    font-size: 1.4rem !important;
 }
 
 /* --- Buttons (primary = amber CTA) --- */
@@ -208,19 +219,37 @@ code, pre, .stCode,
     background-color: var(--accent-hover) !important;
     color: var(--btn-primary-text) !important;
 }
+.stButton > button:active,
+.stButton > button:focus {
+    background-color: var(--accent-hover) !important;
+    color: var(--btn-primary-text) !important;
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px !important;
+}
 .stButton > button[kind="secondary"] {
     background-color: var(--surface2) !important;
     color: var(--text-primary) !important;
     border: 1px solid var(--border2) !important;
 }
 .stButton > button[kind="secondary"]:hover {
-    border-color: var(--text-muted2) !important;
+    border-color: var(--accent) !important;
+}
+/* Form submit buttons */
+.stFormSubmitButton > button {
+    background-color: var(--accent) !important;
+    color: var(--btn-primary-text) !important;
+    border: none !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+}
+.stFormSubmitButton > button:hover {
+    background-color: var(--accent-hover) !important;
+    color: var(--btn-primary-text) !important;
 }
 
 /* --- Form inputs --- */
 .stTextInput input,
-.stTextArea textarea,
-.stSelectbox > div > div {
+.stTextArea textarea {
     background-color: var(--surface2) !important;
     color: var(--text-primary) !important;
     border: 1px solid var(--border2) !important;
@@ -230,7 +259,7 @@ code, pre, .stCode,
 }
 .stTextInput input::placeholder,
 .stTextArea textarea::placeholder {
-    color: var(--text-muted2) !important;
+    color: var(--text-muted) !important;
 }
 .stTextInput input:focus,
 .stTextArea textarea:focus {
@@ -238,12 +267,90 @@ code, pre, .stCode,
     box-shadow: 0 0 0 1px var(--accent) !important;
 }
 
+/* --- Selectbox / Dropdown (BaseWeb) --- */
+/* Closed selectbox container */
+.stSelectbox > div > div,
+.stSelectbox [data-baseweb="select"] > div {
+    background-color: var(--surface2) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 8px !important;
+}
+/* Selected value text */
+.stSelectbox [data-baseweb="select"] span,
+.stSelectbox [data-baseweb="select"] .css-1dimb5e-singleValue,
+.stSelectbox [data-baseweb="select"] div[data-baseweb="select"] > div > div {
+    color: var(--text-primary) !important;
+}
+/* Dropdown arrow icon */
+.stSelectbox [data-baseweb="select"] svg {
+    fill: var(--text-muted) !important;
+}
+/* Dropdown menu (open) */
+[data-baseweb="popover"],
+[data-baseweb="menu"] {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 8px !important;
+}
+/* Dropdown option items */
+[data-baseweb="menu"] li,
+[data-baseweb="menu"] [role="option"] {
+    color: var(--text-primary) !important;
+    background-color: var(--surface) !important;
+}
+/* Dropdown option hover */
+[data-baseweb="menu"] li:hover,
+[data-baseweb="menu"] [role="option"]:hover,
+[data-baseweb="menu"] li[aria-selected="true"],
+[data-baseweb="menu"] [role="option"][aria-selected="true"] {
+    background-color: var(--surface2) !important;
+    color: var(--text-primary) !important;
+}
+/* Dropdown option highlighted/focused */
+[data-baseweb="menu"] li:focus,
+[data-baseweb="menu"] [role="option"]:focus {
+    background-color: var(--accent-dim) !important;
+    color: var(--text-primary) !important;
+}
+/* Selectbox label text */
+.stSelectbox label {
+    color: var(--text-primary) !important;
+}
+
+/* --- Multiselect (BaseWeb) --- */
+.stMultiSelect [data-baseweb="select"] > div {
+    background-color: var(--surface2) !important;
+    border: 1px solid var(--border2) !important;
+    color: var(--text-primary) !important;
+}
+.stMultiSelect [data-baseweb="tag"] {
+    background-color: var(--accent-dim) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--accent-border) !important;
+}
+.stMultiSelect label {
+    color: var(--text-primary) !important;
+}
+
 /* --- Expanders --- */
-.streamlit-expanderHeader {
+.streamlit-expanderHeader,
+[data-testid="stExpander"] summary {
     background-color: var(--surface) !important;
     border: 1px solid var(--border) !important;
     border-radius: 8px !important;
-    color: var(--text-muted) !important;
+    color: var(--text-primary) !important;
+}
+[data-testid="stExpander"] summary:hover {
+    color: var(--text-primary) !important;
+    border-color: var(--accent) !important;
+}
+[data-testid="stExpander"] summary svg {
+    fill: var(--text-muted) !important;
+}
+[data-testid="stExpander"] > div > div {
+    border: 1px solid var(--border) !important;
+    border-top: none !important;
 }
 
 /* --- Tables and dataframes --- */
@@ -273,10 +380,13 @@ code, pre, .stCode,
     border-bottom: 1px solid var(--border) !important;
 }
 .stTabs [data-baseweb="tab"] {
-    color: var(--text-muted2) !important;
+    color: var(--text-muted) !important;
     border-bottom: 2px solid transparent !important;
     font-size: 13px !important;
     font-weight: 400 !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: var(--text-primary) !important;
 }
 .stTabs [aria-selected="true"] {
     color: var(--accent) !important;
@@ -291,7 +401,8 @@ code, pre, .stCode,
     border: 1px solid var(--border2) !important;
 }
 .stDownloadButton > button:hover {
-    border-color: var(--text-muted2) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-primary) !important;
 }
 
 /* --- Radio buttons (model toggle) --- */
@@ -304,13 +415,26 @@ code, pre, .stCode,
 .stRadio label {
     color: var(--text-primary) !important;
 }
+.stRadio label:hover {
+    color: var(--text-primary) !important;
+}
 
 /* --- Toggle / Switch --- */
-[data-testid="stSidebar"] .stToggle label span {
-    color: var(--text-muted) !important;
+.stToggle label span {
+    color: var(--text-primary) !important;
     font-size: 13px !important;
+}
+[data-testid="stSidebar"] .stToggle label span {
     text-transform: none !important;
     letter-spacing: normal !important;
+}
+
+/* --- Checkboxes --- */
+.stCheckbox label {
+    color: var(--text-primary) !important;
+}
+.stCheckbox label:hover {
+    color: var(--text-primary) !important;
 }
 
 /* --- Messages --- */
@@ -350,19 +474,38 @@ hr {
     border-color: var(--border) !important;
 }
 
-/* --- Checkboxes --- */
-.stCheckbox label {
+/* --- Caption/small text --- */
+.stCaption, [data-testid="stCaption"] {
     color: var(--text-muted) !important;
 }
 
-/* --- Caption/small text --- */
-.stCaption, [data-testid="stCaption"] {
-    color: var(--text-muted2) !important;
+/* --- Widget labels (global) --- */
+.stTextInput label,
+.stTextArea label,
+.stNumberInput label,
+.stDateInput label,
+.stTimeInput label,
+.stFileUploader label {
+    color: var(--text-primary) !important;
 }
 
 /* --- Links --- */
 a {
     color: var(--blue) !important;
+}
+
+/* --- Tooltips --- */
+[data-baseweb="tooltip"] {
+    background-color: var(--surface2) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border) !important;
+}
+
+/* --- Number input spinner buttons --- */
+.stNumberInput button {
+    background-color: var(--surface2) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border2) !important;
 }
 
 /* --- Scrollbar --- */
