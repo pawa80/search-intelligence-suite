@@ -108,18 +108,18 @@ Pal + Morten collaboration.
 - **AI Analysis CSV exports**: Summary table + per-issue detail downloadable as CSV from AI Analysis tab.
 
 ## Next Up
+- **Session 2** (next): #9 Sonnet prompt improvements (8 AEO research findings — single highest-ROI quality jump) + R:C AI intent suggestion helper (Morten's #1 friction)
+- **Session 3**: #27 language fix + #26 toggle kill fix + #28/#15 project settings viewable/editable + #33 matrix headers + #34 download button investigation + R:A authority guide
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
 - **AEO Guide research**: Pal commissioning AEO research to improve `aeo/intelligence/aeo_guide.md`. Potential gaps: multi-modal content signals, freshness/recency weighting, updated stats.
 - **Superadmin AEO Guide editor** (parked): Superadmin role on workspace_members, admin panel to edit AEO guide in-app, store guide in Supabase instead of flat file.
 - **Domain context + intent persistence**: Re-enabled Mar 24. Run migration 010 (projects UPDATE RLS) + PostgREST schema reload, then test.
 - **Mobile optimisation** (parked): Not blocking beta.
-- Investigate the 7 failed queries (likely Perplexity API timeouts on longer queries — consider retry logic)
-- Remove "Test (3 queries)" button once stable (or keep as dev convenience)
 - Set up custom SMTP (Resend) for email confirmation when approaching real users
 
 ## Notes for Product Director
 - **All modules deployed**. Streamlit Cloud auto-deploys from master.
-- **Sidebar nav (6)**: Rank Tracker, Crawl, Matrix, AI Workspace, Data Sources, Settings. Full English UI since v3.1.
+- **Sidebar nav (6)**: Rank Tracker, Crawl, Matrix, AI Workspace, Data Sources, Settings. Full English UI since v3.1. **Radio buttons** since v3.4 (all visible, no dropdown).
 - **GSC/GA4 untested with real data** — Pal has no active GSC properties. Morten needs to test. His Gmail must be added as a test user in Google Cloud Console OAuth consent screen first.
 - **AI Workspace depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + gpt-4.1-mini playbook) — both in Streamlit Cloud secrets ✓
 - **Playbook v3.3** (Apr 2): Reasonable tier = structural audit (gpt-4.1-mini ~$0.02), Premium tier = full rewrite (Sonnet ~$0.11). Scannability formatting, checkbox→bullet fix, page slug in downloads. Safety tags: `v3.3-playbook-formatting`, `v3.2-colour-system`, `v3.1-nav-english`, `v3.0-priority0-schema-corrections`.
@@ -150,6 +150,11 @@ When adding new tables that reference `projects` or `workspaces`:
 
 ### Known Bug: Select All checkbox visual state
 - **Rank Tracker "Select all" button** functionally works (bulk delete removes the correct keywords) but checkboxes don't visually fill after clicking "Select all". Likely a Streamlit rendering quirk — `st.checkbox(value=True)` on rerun doesn't always update the visual state despite the widget key being cleared. Low priority — cosmetic only, no data impact.
+
+### JWT / Session Expiry
+- JWT expires after ~1 hour. Auto-refresh logic in `db_request()` handles this transparently (catches 401, calls `_refresh_jwt()`, retries once).
+- **Refresh token** expires after ~1 week of inactivity (Supabase default). When this happens, auto-refresh silently fails and the user sees `JWT expired` errors on every DB call. **Fix: log out and log back in.** This is normal, not a bug.
+- Long-running operations (AI generation, batch crawls) can also hit the 1-hour JWT window mid-operation — the per-module `_db_get`/`_db_post` helpers in `aeo/aeo_ui.py`, `aeo/context_builder.py`, `crawler/ai_analyser.py` all have their own 401 retry logic for this.
 
 ## Web Crawler Module
 
@@ -359,7 +364,46 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Apr 2 2026
+Last session: Apr 7 2026
+
+### Apr 7 2026 — Stabilise Session 1 (5 backlog items, 5 commits)
+**All pushed to master, auto-deployed to Streamlit Cloud.**
+
+**#35 (P0) Project settings leak fix** (commit `cbb97a4`):
+- Central project change detector in `app.py` (~line 977). When `selected_project_id` changes, clears all project-scoped session state: `domain_context`, `selected_query_ids`, `_confirm_bulk_delete`, `crawl_results`, `url_list_results`, `sitemap_results`, `matrise_generate_url`, `_tool_override`, plus all `aeo_page_*`/`aeo_arbeidspakke*`/`aeo_intent_*`/`cb_*`/`_citation_batch_status_*` prefixed keys.
+- AEO module's own detector (aeo_ui.py:268-273) kept as belt-and-braces.
+- Safety tag: `v3.4-pre-settings-scoping-fix`.
+
+**#31 Norwegian page types → English** (commit `0980255`):
+- `aeo/aeo_ui.py` dropdown: Forside→Homepage, Produktside→Product/Service Page, etc. (8 labels).
+- `aeo/recommender.py` Sonnet prompt: matching English labels in page type guidance.
+- Existing DB records with Norwegian values degrade gracefully (dropdown shows unselected, user re-picks).
+- Safety tag: `v3.2-english-page-types`.
+
+**#19 Rank Tracker per-category batching** (commit `b0d729e`):
+- Old `run_citation_check()` replaced with `run_citation_check_batch()` (single category) + `run_citation_check_all_categories()` (sequential with JWT refresh between).
+- Per-category "Check" buttons in expander + "Check All (N)" button runs categories sequentially.
+- JWT read from `st.session_state` per-query (not stale local variable — root cause of mid-batch 401s).
+- Category status persisted in `_citation_batch_status_{project_id}` — shows ✅/⚠️/⬚ per category, resumable if interrupted.
+- Delay: 0.5s within batch, 1s between categories. "Clear status" button to reset.
+- `_get_fresh_token()` helper added (proactive refresh before batch).
+- Safety tag: `v3.3-rank-tracker-batching`.
+
+**#25 Light mode contrast fix** (commits `226f795` + `cbb06b5`):
+- **v1** (226f795): Darkened light mode CSS variables for WCAG AA — text-muted #5a6070→#3d4450, text-muted2 #8890a0→#5c6370, sidebar-bg #ffffff→#f3f4f6, borders darkened, all 5 semantic colours darkened.
+- **v2** (cbb06b5): Comprehensive component pass — BaseWeb selectbox/dropdown overrides (menu bg, option text, hover/focus states), expander headers + content area, checkbox labels, caption colours, tab hover states, button active/focus states, form submit buttons, widget labels, tooltips, multiselect tags, number input spinners, metric card font-size bump (fixes #32 truncation). All sidebar labels bumped to text-primary.
+- Dark mode completely untouched in both commits.
+- Safety tag: `v3.4-light-mode-contrast`.
+
+**#30 Missing keywords for palerikwaagbo.no** — investigated via Supabase SQL. No `.no` project exists. Only `.com` projects (315 queries + 0-query duplicate "Pal Brand"). False alarm.
+
+**Backlog progress**: Session 1 plan was #35+#31+#19+#25+#30. All 5 done. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#26+#28/#15+#32+#33+#34+R:A.
+
+### Apr 3 2026 — Sidebar nav: selectbox → radio (v3.4)
+- Replaced `st.selectbox` with `st.radio` + `label_visibility="collapsed"` for sidebar tool selector
+- All 6 nav items now visible at once — no dropdown click needed (demo readiness)
+- Safety tag: `v3.3-pre-radio-nav`. Commit `be43e4d`, pushed, auto-deploying.
+- One-line change in `app.py` line 884. All `_tool_override` wiring unchanged.
 
 ### Apr 2 2026 — Playbook Formatting Fixes
 - Sonnet prompt: added scannability rule (blank line before every bold item) + checklist format rule (bullets not checkboxes)
