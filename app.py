@@ -900,8 +900,31 @@ def show_dashboard():
                         break
             selected_name = st.selectbox("Project", project_names, index=current_idx)
             selected_project = next(p for p in projects if p["name"] == selected_name)
-            st.session_state.selected_project_id = selected_project["id"]
+            new_project_id = selected_project["id"]
 
+            # --- Central project change detector (#35) ---
+            prev_project_id = st.session_state.get("_prev_project_id")
+            if prev_project_id and prev_project_id != new_project_id:
+                # Clear all project-scoped transient state
+                _project_scoped_keys = [
+                    "domain_context",
+                    # Rank Tracker
+                    "selected_query_ids", "_confirm_bulk_delete",
+                    # Crawler
+                    "crawl_results", "url_list_results", "sitemap_results",
+                    # Cross-tool handoff
+                    "matrise_generate_url", "_tool_override",
+                ]
+                for k in _project_scoped_keys:
+                    st.session_state.pop(k, None)
+                # Clear prefixed keys (AEO, crawler, checkbox widgets)
+                for k in list(st.session_state.keys()):
+                    if (k.startswith("aeo_page_") or k.startswith("aeo_arbeidspakke")
+                            or k.startswith("aeo_intent_") or k.startswith("cb_")):
+                        del st.session_state[k]
+            st.session_state["_prev_project_id"] = new_project_id
+
+            st.session_state.selected_project_id = new_project_id
             st.session_state["domain_context"] = selected_project.get("domain_context") or ""
 
         if projects and st.session_state.selected_project_id:
