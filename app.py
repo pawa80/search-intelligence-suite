@@ -868,114 +868,89 @@ def check_citation(query_text, domain, api_key):
     }
 
 
-def _get_fresh_token():
-    """Return current JWT, refreshing if needed."""
-    token = st.session_state.get("access_token")
-    if not token:
-        return None
-    # Proactively refresh to avoid mid-batch expiry
-    new_token = _refresh_jwt()
-    return new_token or token
-
-
-def run_citation_check_batch(project_id, domain, queries, api_key, category_label=""):
-    """Run citation check for a batch of queries (single category). Uses fresh JWT per batch.
-    Returns (checked, failures, last_error)."""
-    total = len(queries)
-    checked = 0
-    failures = 0
-    last_error = ""
-    today = str(date.today())
-
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    prefix = f"[{category_label}] " if category_label else ""
-
-    for i, q in enumerate(queries):
-        status_text.text(f"{prefix}Checking {i + 1}/{total}: {q['query_text'][:50]}...")
-        progress_bar.progress((i + 1) / total)
-
-        try:
-            # Always read latest token from session state (may have been refreshed by db_upsert)
-            token = st.session_state.get("access_token")
-            result = check_citation(q["query_text"], domain, api_key)
-            db_upsert("geo_check_results", token, {
-                "query_id": q["id"],
-                "project_id": project_id,
-                "check_date": today,
-                "appears": result["appears"],
-                "position": result["position"],
-                "citation_url": result["citation_url"],
-                "engine": "perplexity",
-                "raw_sources": json.dumps(result["raw_sources"]),
-            }, on_conflict="query_id,engine,check_date")
-            checked += 1
-        except Exception as e:
-            failures += 1
-            last_error = str(e)
-
-        if i < total - 1:
-            time.sleep(0.5)
-
-    progress_bar.empty()
-    status_text.empty()
-
-    return checked, failures, last_error
-
-
-def run_citation_check_all_categories(project_id, domain, queries, api_key):
-    """Run citation checks category by category with JWT refresh between batches."""
-    # Group by category
+def run_full_citation_check(project_id, domain, queries, api_key):
+    """Run citation checks on ALL queries, batched by category with JWT refresh.
+    Accumulates results in memory, bulk-writes only on completion.
+    Returns True if check completed (even with some failures)."""
+    # Group by category for internal batching
     categories = {}
     for q in queries:
         cat = q.get("category", "Uncategorised")
         categories.setdefault(cat, []).append(q)
-
     cat_names = sorted(categories.keys())
+
     total_queries = len(queries)
+    today = str(date.today())
+    accumulated_results = []  # Build up in memory, write at end
     total_checked = 0
     total_failures = 0
     last_error = ""
 
-    # Initialise per-category status in session state (scoped by project)
-    status_key = f"_citation_batch_status_{project_id}"
-    if status_key not in st.session_state:
-        st.session_state[status_key] = {}
-
-    batch_status = st.session_state[status_key]
-    overall_status = st.empty()
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    global_idx = 0
 
     for cat_idx, cat_name in enumerate(cat_names):
         cat_queries = categories[cat_name]
-        overall_status.info(
-            f"Category {cat_idx + 1}/{len(cat_names)}: **{cat_name}** "
-            f"({len(cat_queries)} queries) — {total_checked}/{total_queries} done overall"
-        )
 
         # Refresh JWT between category batches
         if cat_idx > 0:
             _refresh_jwt()
             time.sleep(1)
 
-        checked, failures, err = run_citation_check_batch(
-            project_id, domain, cat_queries, api_key, category_label=cat_name
-        )
+        for i, q in enumerate(cat_queries):
+            global_idx += 1
+            status_text.text(
+                f"Checking citations: {global_idx}/{total_queries} "
+                f"(Category: {cat_name})"
+            )
+            progress_bar.progress(global_idx / total_queries)
 
-        total_checked += checked
-        total_failures += failures
-        if err:
-            last_error = err
+            try:
+                result = check_citation(q["query_text"], domain, api_key)
+                accumulated_results.append({
+                    "query_id": q["id"],
+                    "project_id": project_id,
+                    "check_date": today,
+                    "appears": result["appears"],
+                    "position": result["position"],
+                    "citation_url": result["citation_url"],
+                    "engine": "perplexity",
+                    "raw_sources": json.dumps(result["raw_sources"]),
+                })
+                total_checked += 1
+            except Exception as e:
+                total_failures += 1
+                last_error = str(e)
 
-        # Persist category status
-        batch_status[cat_name] = {
-            "checked": checked,
-            "total": len(cat_queries),
-            "failures": failures,
-            "status": "failed" if failures == len(cat_queries) else "done",
-        }
-        st.session_state[status_key] = batch_status
+            if global_idx < total_queries:
+                time.sleep(0.2)
 
-    overall_status.empty()
+    progress_bar.empty()
+    status_text.empty()
+
+    # Bulk-write ALL results only after full run completes
+    if accumulated_results:
+        write_status = st.empty()
+        write_status.info(f"Saving {len(accumulated_results)} results...")
+        write_failures = 0
+        token = st.session_state.get("access_token")
+        for row in accumulated_results:
+            try:
+                db_upsert("geo_check_results", token, row,
+                          on_conflict="query_id,engine,check_date")
+            except Exception:
+                # Refresh and retry once
+                _refresh_jwt()
+                token = st.session_state.get("access_token")
+                try:
+                    db_upsert("geo_check_results", token, row,
+                              on_conflict="query_id,engine,check_date")
+                except Exception:
+                    write_failures += 1
+        write_status.empty()
+        if write_failures:
+            st.warning(f"{write_failures} results failed to save.")
 
     # Track usage
     try:
@@ -983,19 +958,21 @@ def run_citation_check_all_categories(project_id, domain, queries, api_key):
         log_usage_event(
             event_type="citation_check",
             api_provider="perplexity",
-            event_detail=f"{total_checked} queries checked across {len(cat_names)} categories",
+            event_detail=f"{total_checked}/{total_queries} checked, {len(cat_names)} categories",
             project_id=project_id,
         )
     except Exception:
         pass
 
-    msg = f"Done! {total_checked}/{total_queries} queries checked across {len(cat_names)} categories."
+    msg = f"Done! {total_checked}/{total_queries} keywords checked."
     if total_failures:
         msg += f" {total_failures} failed."
         st.warning(msg)
         st.error(f"Last error: {last_error}")
     else:
         st.success(msg)
+
+    return True
 
 
 def get_latest_results(access_token, project_id):
@@ -1139,11 +1116,10 @@ def show_dashboard():
                 ]
                 for k in _project_scoped_keys:
                     st.session_state.pop(k, None)
-                # Clear prefixed keys (AEO, crawler, checkbox widgets, batch status)
+                # Clear prefixed keys (AEO, crawler, checkbox widgets)
                 for k in list(st.session_state.keys()):
                     if (k.startswith("aeo_page_") or k.startswith("aeo_arbeidspakke")
-                            or k.startswith("aeo_intent_") or k.startswith("cb_")
-                            or k.startswith("_citation_batch_status_")):
+                            or k.startswith("aeo_intent_") or k.startswith("cb_")):
                         del st.session_state[k]
             st.session_state["_prev_project_id"] = new_project_id
 
@@ -1305,75 +1281,19 @@ def show_dashboard():
         if not PERPLEXITY_API_KEY:
             st.warning("Set PERPLEXITY_API_KEY to run checks.")
         else:
-            # Group queries by category for per-category controls
-            cat_groups = {}
-            for q in active_queries:
-                cat = q.get("category", "Uncategorised")
-                cat_groups.setdefault(cat, []).append(q)
-
-            col_check_all, col_test, col_spacer = st.columns([1, 1, 2])
-            with col_check_all:
-                run_all = st.button(f"Check All ({len(active_queries)})")
-            with col_test:
-                run_test = st.button("Test (3 queries)")
-
-            # Per-category check buttons + status
-            batch_status_key = f"_citation_batch_status_{project['id']}"
-            batch_status = st.session_state.get(batch_status_key, {})
-
-            if batch_status:
-                with st.expander("Category check status", expanded=True):
-                    for cat_name in sorted(cat_groups.keys()):
-                        s = batch_status.get(cat_name)
-                        if s:
-                            if s["status"] == "done" and s["failures"] == 0:
-                                icon = "✅"
-                            elif s["failures"] > 0:
-                                icon = f"⚠️ ({s['failures']} failed)"
-                            else:
-                                icon = "⬚"
-                            st.caption(f"{icon} **{cat_name}** — {s['checked']}/{s['total']} checked")
-                        else:
-                            st.caption(f"⬚ **{cat_name}** — {len(cat_groups[cat_name])} pending")
-                    if st.button("Clear status", key="btn_clear_batch_status"):
-                        st.session_state.pop(batch_status_key, None)
-                        st.rerun()
-
-            with st.expander("Check by category"):
-                for cat_name in sorted(cat_groups.keys()):
-                    cat_qs = cat_groups[cat_name]
-                    col_cat, col_cat_btn = st.columns([3, 1])
-                    col_cat.text(f"{cat_name} ({len(cat_qs)} queries)")
-                    if col_cat_btn.button("Check", key=f"btn_check_cat_{cat_name}"):
-                        _refresh_jwt()
-                        checked, failures, err = run_citation_check_batch(
-                            project["id"], project["domain"], cat_qs, PERPLEXITY_API_KEY,
-                            category_label=cat_name
-                        )
-                        if batch_status_key not in st.session_state:
-                            st.session_state[batch_status_key] = {}
-                        st.session_state[batch_status_key][cat_name] = {
-                            "checked": checked, "total": len(cat_qs),
-                            "failures": failures,
-                            "status": "failed" if failures == len(cat_qs) else "done",
-                        }
-                        if failures:
-                            st.warning(f"{cat_name}: {checked}/{len(cat_qs)} checked, {failures} failed.")
-                        else:
-                            st.success(f"{cat_name}: {checked}/{len(cat_qs)} checked.")
-                        st.rerun()
-
-            # Execute check all or test
-            if run_all:
-                st.session_state.pop(batch_status_key, None)
-                run_citation_check_all_categories(
-                    project["id"], project["domain"], active_queries, PERPLEXITY_API_KEY
+            n_cats = len(set(q.get("category", "Uncategorised") for q in active_queries))
+            col_btn, col_info = st.columns([1, 3])
+            with col_btn:
+                run_check = st.button(
+                    f"Run Citation Check ({len(active_queries)} keywords)",
+                    type="primary",
                 )
-                st.rerun()
-            elif run_test:
-                run_citation_check_batch(
-                    project["id"], project["domain"], active_queries[:3], PERPLEXITY_API_KEY,
-                    category_label="Test"
+            with col_info:
+                st.caption(f"{len(active_queries)} keywords across {n_cats} categories")
+
+            if run_check:
+                run_full_citation_check(
+                    project["id"], project["domain"], active_queries, PERPLEXITY_API_KEY
                 )
                 st.rerun()
 
@@ -1399,17 +1319,33 @@ def show_dashboard():
         m2.metric("Last Check", latest_date)
         m3.metric("Avg Position", f"{avg_pos:.1f}" if positions else "—")
 
-        # Trend chart (only if multiple dates)
+        # Trend chart — only plot dates with complete checks
+        # A "complete" check date has results for at least 80% of current active queries
+        # (allows for small query list changes over time without dropping data points)
+        active_query_count = len([q for q in queries if q.get("is_active", True)])
+        completeness_threshold = max(1, int(active_query_count * 0.8))
+
         if len(all_dates) > 1:
             st.divider()
             st.subheader("Citation Rate Over Time")
             trend_data = {}
+            skipped_dates = 0
             for d in all_dates:
                 day_results = [r for r in results if r["check_date"] == d]
+                if len(day_results) < completeness_threshold:
+                    skipped_dates += 1
+                    continue
                 day_cited = sum(1 for r in day_results if r["appears"])
                 day_total = len(day_results)
                 trend_data[d] = (day_cited / day_total * 100) if day_total > 0 else 0
-            st.line_chart({"Citation Rate %": trend_data})
+            if trend_data and len(trend_data) > 1:
+                st.line_chart({"Citation Rate %": trend_data})
+                if skipped_dates:
+                    st.caption(f"{skipped_dates} incomplete check date(s) excluded from chart.")
+            elif trend_data:
+                st.caption("Run citation checks on different days to see trends.")
+            else:
+                st.caption("No complete check dates found. Run a full citation check.")
         elif len(all_dates) == 1:
             st.caption("Run citation checks on different days to see trends.")
 
