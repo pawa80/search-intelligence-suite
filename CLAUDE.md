@@ -382,14 +382,10 @@ Last session: Apr 7 2026
 - Existing DB records with Norwegian values degrade gracefully (dropdown shows unselected, user re-picks).
 - Safety tag: `v3.2-english-page-types`.
 
-**#19 Rank Tracker per-category batching** (commit `b0d729e`):
-- Old `run_citation_check()` replaced with `run_citation_check_batch()` (single category) + `run_citation_check_all_categories()` (sequential with JWT refresh between).
-- Per-category "Check" buttons in expander + "Check All (N)" button runs categories sequentially.
-- JWT read from `st.session_state` per-query (not stale local variable — root cause of mid-batch 401s).
-- Category status persisted in `_citation_batch_status_{project_id}` — shows ✅/⚠️/⬚ per category, resumable if interrupted.
-- Delay: 0.5s within batch, 1s between categories. "Clear status" button to reset.
-- `_get_fresh_token()` helper added (proactive refresh before batch).
-- Safety tag: `v3.3-rank-tracker-batching`.
+**#19 Rank Tracker reliability** (commits `b0d729e` then `cd39152`):
+- v1 (b0d729e): Per-category batching with JWT refresh. Had per-category "Check" buttons.
+- v2 (cd39152): **Reverted per-category UI** — partial checks corrupted the trend chart (nosedive effect). Single "Run Citation Check (N keywords)" button. Backend still batches by category with JWT refresh between batches. Results accumulated in memory during run, **bulk-written to Supabase only after ALL keywords complete** — prevents partial data in time series. Trend chart filters out incomplete check dates (< 80% of current query count). 0.2s delay between API calls, 1s between category batches.
+- Safety tags: `v3.3-rank-tracker-batching`, `v3.7-rank-tracker-single-check`.
 
 **#25 Light mode contrast fix** (commits `226f795` + `cbb06b5`):
 - **v1** (226f795): Darkened light mode CSS variables for WCAG AA — text-muted #5a6070→#3d4450, text-muted2 #8890a0→#5c6370, sidebar-bg #ffffff→#f3f4f6, borders darkened, all 5 semantic colours darkened.
