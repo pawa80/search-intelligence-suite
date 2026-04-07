@@ -1126,7 +1126,8 @@ def show_dashboard():
                 # Clear prefixed keys (AEO, crawler, checkbox widgets)
                 for k in list(st.session_state.keys()):
                     if (k.startswith("aeo_page_") or k.startswith("aeo_arbeidspakke")
-                            or k.startswith("aeo_intent_") or k.startswith("cb_")):
+                            or k.startswith("aeo_intent_") or k.startswith("aeo_custom_")
+                            or k.startswith("cb_")):
                         del st.session_state[k]
             st.session_state["_prev_project_id"] = new_project_id
 

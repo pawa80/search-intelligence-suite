@@ -268,7 +268,8 @@ def show_aeo_agent(
     prev_aeo_project = st.session_state.get("_aeo_project_id")
     if prev_aeo_project != project_id:
         for key in list(st.session_state.keys()):
-            if key.startswith("aeo_page_") or key.startswith("aeo_arbeidspakke") or key.startswith("aeo_intent_"):
+            if (key.startswith("aeo_page_") or key.startswith("aeo_arbeidspakke")
+                    or key.startswith("aeo_intent_") or key.startswith("aeo_custom_")):
                 del st.session_state[key]
         st.session_state["_aeo_project_id"] = project_id
 
@@ -385,30 +386,97 @@ def show_aeo_agent(
         context = {"crawl_analysis": None, "gsc": None, "ga": None}
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
 
-    # Step 2: Intent
+    # Step 2: Validate user intents
     stored_intent = selected_page.get("intent") or ""
     st.divider()
-    st.subheader("Step 2: Set page intent")
-    # Pre-seed session_state so value= applies even on revisits
-    _intent_key = f"aeo_intent_input_{_page_key}"
-    if _intent_key not in st.session_state:
-        st.session_state[_intent_key] = stored_intent
-    intent = st.text_input(
-        "What is this page meant to achieve?",
-        placeholder='e.g. "Rank for \'best running shoes Norway\' and be cited by AI for product comparisons"',
-        key=_intent_key,
+    st.subheader("Step 2: Validate user intents")
+    st.caption(
+        "These are the phrases we detected that your page could be optimised for. "
+        "Select 3-6 intents that best match what you want this page to rank for. "
+        "If none of these match, type your own below."
     )
-    if selected_page.get("id") and intent != stored_intent:
-        if st.button("Save intent", key=f"btn_save_intent_{_page_key}"):
-            _db_patch(token, "pages",
-                      params={"id": f"eq.{selected_page['id']}"},
-                      body={"intent": intent if intent else None})
-            st.success("Intent saved.")
+
+    # --- AI intent suggestions ---
+    from aeo.intent_helper import suggest_intents
+
+    # Parse stored intents (comma-separated) for pre-selection
+    _stored_intents_set = set()
+    if stored_intent:
+        _stored_intents_set = {s.strip() for s in stored_intent.split(",") if s.strip()}
+
+    # Generate or retrieve cached suggestions for this page
+    _suggestions_key = f"aeo_intent_suggestions_{_page_key}"
+    if _suggestions_key not in st.session_state:
+        # Extract first paragraph from page_elements if available
+        _first_para = ""
+        pe = selected_page.get("page_elements") or {}
+        if isinstance(pe, str):
             try:
-                from tracking.usage_tracker import log_usage_event
-                log_usage_event("intent_saved", event_detail="manual save", project_id=project_id)
-            except Exception:
-                pass
+                pe = json.loads(pe)
+            except (json.JSONDecodeError, TypeError):
+                pe = {}
+        # Use meta_description as proxy for first paragraph if no page_elements
+        _first_para = (selected_page.get("meta_description") or "")[:300]
+
+        _page_title = selected_page.get("title") or selected_page.get("url", "")
+        _page_type = selected_page.get("page_type") or ""
+        _domain_ctx = st.session_state.get("domain_context", "")
+
+        if not st.session_state.get("operation_in_progress", False):
+            with st.spinner("Generating intent suggestions..."):
+                suggestions = suggest_intents(
+                    title=_page_title,
+                    page_type=_page_type,
+                    domain=domain,
+                    domain_context=_domain_ctx,
+                    first_paragraph=_first_para,
+                )
+            st.session_state[_suggestions_key] = suggestions
+        else:
+            st.session_state[_suggestions_key] = []
+
+    suggestions = st.session_state.get(_suggestions_key, [])
+
+    # Show checkboxes for each suggestion
+    selected_intents_list = []
+    if suggestions:
+        for i, suggestion in enumerate(suggestions):
+            _cb_key = f"aeo_intent_cb_{_page_key}_{i}"
+            # Pre-check if this suggestion was in stored intents
+            default_checked = suggestion in _stored_intents_set
+            if _cb_key not in st.session_state and default_checked:
+                st.session_state[_cb_key] = True
+            checked = st.checkbox(suggestion, key=_cb_key)
+            if checked:
+                selected_intents_list.append(suggestion)
+    else:
+        st.info("No suggestions available — type your intents manually below.")
+
+    # Custom intent text area
+    _custom_intent_key = f"aeo_custom_intent_{_page_key}"
+    custom_intent = st.text_area(
+        "Additional intents (one per line)",
+        height=80,
+        placeholder="Type any additional intents not listed above...",
+        key=_custom_intent_key,
+    )
+    if custom_intent:
+        for line in custom_intent.strip().split("\n"):
+            line = line.strip()
+            if line and line not in selected_intents_list:
+                selected_intents_list.append(line)
+
+    # Count and status
+    n_selected = len(selected_intents_list)
+    if n_selected >= 3:
+        st.success(f"Selected: {n_selected} intents — ready to audit!")
+    elif n_selected > 0:
+        st.caption(f"Selected: {n_selected} intents (recommend 3-6 for best results)")
+    else:
+        st.caption("No intents selected yet")
+
+    # Combine into intent string for prompt and saving
+    intent = ", ".join(selected_intents_list)
 
     # Step 3: Generate
     st.divider()
