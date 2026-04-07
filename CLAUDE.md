@@ -46,7 +46,7 @@ Pal + Morten collaboration.
 - `projects` (id, workspace_id, name, domain, created_at, domain_context) — RLS via workspace membership. `domain_context` is universal brand info injected into all arbeidspakker.
 - `queries` (id, project_id, query_text, created_at) — RLS via project→workspace chain
 - `geo_check_results` (id, query_id, project_id, check_date, appears, position, citation_url, engine, raw_sources) — UPSERT on (query_id, engine, check_date)
-- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at, page_type, intent, status, language) — UPSERT on (project_id, url). Written by crawler after crawl completes. `page_type` and `intent` set by AEO Agent UI. `status` TEXT NOT NULL DEFAULT 'active' — values: active, redirected, dead, archived. Pages are NEVER deleted — status is set to 'archived' instead. `language` TEXT — ISO 639-1 content language code (e.g. 'nb', 'en', 'fr'). Set by crawler or user. NOTE: DELETE RLS policy has been removed.
+- `pages` (id, project_id, url, canonical_url, status_code, title, h1, meta_description, word_count, depth, in_sitemap, last_crawled_at, created_at, page_type, intent, status, language, page_elements JSONB) — UPSERT on (project_id, url). Written by crawler after crawl completes. `page_type` and `intent` set by AEO Agent UI. `status` TEXT NOT NULL DEFAULT 'active' — values: active, redirected, dead, archived. Pages are NEVER deleted — status is set to 'archived' instead. `language` TEXT — ISO 639-1 content language code (e.g. 'nb', 'en', 'fr'). Set by crawler or user. `page_elements` JSONB DEFAULT '{}' — structured crawl data: `h2_structure` (string[]), `og_tags` (dict), `json_ld` (array of schema objects), `hero_image_alt`, `referrer`, `crawl_time_seconds`. Persisted on every crawl. NOTE: DELETE RLS policy has been removed.
 - `google_connections` (id, workspace_id, user_id, google_refresh_token, google_token_expiry, gsc_property, ga4_property_id, ga4_property_name, connected_at) — UNIQUE on (workspace_id, user_id). RLS via `user_id = auth.uid()`.
 - `gsc_data` (id, project_id, url, clicks, impressions, ctr, position, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, url, date_range_start). RLS via `user_owns_project()`.
 - `ga_data` (id, project_id, page_path, sessions, engaged_sessions, engagement_rate, avg_engagement_time, bounce_rate, date_range_start, date_range_end, fetched_at, page_id FK→pages) — UPSERT on (project_id, page_path, date_range_start). RLS via `user_owns_project()`.
@@ -106,6 +106,7 @@ Pal + Morten collaboration.
 - **Matrise**: Prioritisation view — computed from all modules, ranks pages by priority score. Sidebar tool. See Matrise section below.
 - **Arbeidspakker Library**: Central view of all work packages across a project. Sidebar tool. See Arbeidspakker section below.
 - **AI Analysis CSV exports**: Summary table + per-issue detail downloadable as CSV from AI Analysis tab.
+- **Stabilise Session 1 (Apr 7)**: Project settings scoping fix (#35), English page types (#31), Rank Tracker per-category batching (#19), light mode WCAG AA contrast (#25), crawler data persistence via `page_elements` JSONB.
 
 ## Next Up
 - **Session 2** (next): #9 Sonnet prompt improvements (8 AEO research findings — single highest-ROI quality jump) + R:C AI intent suggestion helper (Morten's #1 friction)
@@ -169,6 +170,7 @@ When adding new tables that reference `projects` or `workspaces`:
 - **Crawl behaviour**: Start from URL → discover links → follow them → repeat to max depth
 - **Sitemap cross-reference**: Fetches `/sitemap.xml` in background before crawl, marks each discovered URL "In Sitemap: Yes/No". Sitemap does NOT guide what gets crawled.
 - **15 columns per URL**: URL, Title, Status, Depth, Referrer, Time, Meta Desc, OG Desc, H1, H2, Hero Alt, Canonical, OG URL, In Sitemap, JSON-LD
+- **Data persistence**: All 15 columns now persisted to Supabase. Individual columns (H1, meta_description, canonical_url, etc.) saved directly on `pages` table. Transient data (H2, OG tags, JSON-LD, hero alt, referrer, crawl time) stored in `page_elements` JSONB column (migration 011). Persistent overview matches active crawl columns.
 - **Defaults**: max depth 10, max pages 20 (up to 2000), skip duplicates on
 - **Delay**: 0.5s between requests, 10s timeout, custom User-Agent
 
@@ -397,7 +399,18 @@ Last session: Apr 7 2026
 
 **#30 Missing keywords for palerikwaagbo.no** — investigated via Supabase SQL. No `.no` project exists. Only `.com` projects (315 queries + 0-query duplicate "Pal Brand"). False alarm.
 
-**Backlog progress**: Session 1 plan was #35+#31+#19+#25+#30. All 5 done. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#26+#28/#15+#32+#33+#34+R:A.
+**Crawler column alignment** (commit `cd0cf95`):
+- Persistent page overview SELECT expanded to include h1, meta_description, canonical_url, in_sitemap, depth (all stored in Supabase but previously not shown on revisit).
+
+**Crawler data persistence — page_elements JSONB** (commit `982de6c`):
+- Migration 011: `page_elements JSONB DEFAULT '{}'` on `pages` table. Run on Supabase, schema reloaded.
+- `_build_page_elements()` builds dict from CrawlResult: h2_structure (string[]), og_tags (dict), json_ld (parsed schema objects), hero_image_alt, referrer, crawl_time_seconds.
+- `_save_crawl_results()` now includes `page_elements` in every UPSERT.
+- Persistent view reads page_elements and displays all 15 crawl columns + 4 operational (Page Type, Intent, Last Crawled, Last Playbook). Column order matches active crawl view.
+- Existing pages show `—` for new columns until re-crawled.
+- Safety tag: `v3.6-persist-crawl-data`.
+
+**Backlog progress**: Session 1 plan (#35+#31+#19+#25+#30) all done, plus crawler persistence bonus. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#26+#28/#15+#32+#33+#34+R:A.
 
 ### Apr 3 2026 — Sidebar nav: selectbox → radio (v3.4)
 - Replaced `st.selectbox` with `st.radio` + `label_visibility="collapsed"` for sidebar tool selector
