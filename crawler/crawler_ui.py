@@ -330,68 +330,72 @@ def _show_crawl_from_url():
         engine = CrawlerEngine(url, max_depth=max_depth, max_pages=max_pages,
                                skip_duplicates=skip_dupes)
 
-        # Background: fetch sitemap for cross-reference lookup (does NOT guide the crawl)
-        sitemap_status = st.empty()
-        sitemap_status.info("Loading sitemap.xml for cross-reference...")
-
-        stats_container = st.empty()
-        current_url = st.empty()
-        progress_bar = st.progress(0)
-        results_container = st.empty()
-
-        results: list[CrawlResult] = []
-        for result in engine.crawl():
-            # Clear sitemap status after first result
-            if len(results) == 0:
-                sitemap_count = len(engine.sitemap_urls)
-                if sitemap_count > 0:
-                    sitemap_status.success(f"Sitemap loaded: {sitemap_count} URLs found")
-                else:
-                    sitemap_status.warning("No sitemap found — 'In Sitemap' will show N/A")
-
-            results.append(result)
-            # Save partial results so they survive if user stops (refreshes/clicks away)
-            st.session_state["crawl_results"] = results
-            s = engine.stats
-            stats_container.markdown(
-                f"**Discovered:** {s['discovered']} · "
-                f"**Processed:** {s['processed']} · "
-                f"**Queue:** {s['queue']} · "
-                f"**Duplicates skipped:** {s['duplicates_skipped']}"
-            )
-            current_url.caption(f"Crawling: {result.url}")
-            progress_bar.progress(min(len(results) / max_pages, 1.0))
-            df = _results_to_df(results)
-            results_container.dataframe(df, use_container_width=True, hide_index=True)
-
-        progress_bar.empty()
-        current_url.empty()
-        st.session_state["crawl_results"] = results
-        st.success(f"Done! Crawled {len(results)} pages.")
-
-        # Track usage
+        st.session_state["operation_in_progress"] = True
         try:
-            from tracking.usage_tracker import log_usage_event
-            log_usage_event(
-                event_type="page_crawl",
-                event_detail=f"{len(results)} pages crawled",
-            )
-        except Exception:
-            pass
+            # Background: fetch sitemap for cross-reference lookup (does NOT guide the crawl)
+            sitemap_status = st.empty()
+            sitemap_status.info("Loading sitemap.xml for cross-reference...")
 
-        # Save to Supabase if project is selected
-        if results and st.session_state.get("crawler_project_id"):
-            saved, failed = _save_crawl_results(results)
-            if failed == 0:
-                st.success(f"Saved {saved} pages to project.")
-            else:
-                st.warning(f"Saved {saved} pages, {failed} failed.")
+            stats_container = st.empty()
+            current_url = st.empty()
+            progress_bar = st.progress(0)
+            results_container = st.empty()
 
-        # Show export immediately
-        if results:
-            df = _results_to_df(results)
-            domain = _get_domain_from_url(results[0].url)
-            _show_results_with_export(df, "crawl", f"{domain}-crawl-results")
+            results: list[CrawlResult] = []
+            for result in engine.crawl():
+                # Clear sitemap status after first result
+                if len(results) == 0:
+                    sitemap_count = len(engine.sitemap_urls)
+                    if sitemap_count > 0:
+                        sitemap_status.success(f"Sitemap loaded: {sitemap_count} URLs found")
+                    else:
+                        sitemap_status.warning("No sitemap found — 'In Sitemap' will show N/A")
+
+                results.append(result)
+                # Save partial results so they survive if user stops (refreshes/clicks away)
+                st.session_state["crawl_results"] = results
+                s = engine.stats
+                stats_container.markdown(
+                    f"**Discovered:** {s['discovered']} · "
+                    f"**Processed:** {s['processed']} · "
+                    f"**Queue:** {s['queue']} · "
+                    f"**Duplicates skipped:** {s['duplicates_skipped']}"
+                )
+                current_url.caption(f"Crawling: {result.url}")
+                progress_bar.progress(min(len(results) / max_pages, 1.0))
+                df = _results_to_df(results)
+                results_container.dataframe(df, use_container_width=True, hide_index=True)
+
+            progress_bar.empty()
+            current_url.empty()
+            st.session_state["crawl_results"] = results
+            st.success(f"Done! Crawled {len(results)} pages.")
+
+            # Track usage
+            try:
+                from tracking.usage_tracker import log_usage_event
+                log_usage_event(
+                    event_type="page_crawl",
+                    event_detail=f"{len(results)} pages crawled",
+                )
+            except Exception:
+                pass
+
+            # Save to Supabase if project is selected
+            if results and st.session_state.get("crawler_project_id"):
+                saved, failed = _save_crawl_results(results)
+                if failed == 0:
+                    st.success(f"Saved {saved} pages to project.")
+                else:
+                    st.warning(f"Saved {saved} pages, {failed} failed.")
+
+            # Show export immediately
+            if results:
+                df = _results_to_df(results)
+                domain = _get_domain_from_url(results[0].url)
+                _show_results_with_export(df, "crawl", f"{domain}-crawl-results")
+        finally:
+            st.session_state["operation_in_progress"] = False
 
     # Show previous results if available
     elif "crawl_results" in st.session_state:
@@ -421,22 +425,26 @@ def _show_check_url_list():
             st.warning("No valid URLs found.")
             return
 
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        results_container = st.empty()
-        results: list[CrawlResult] = []
+        st.session_state["operation_in_progress"] = True
+        try:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            results_container = st.empty()
+            results: list[CrawlResult] = []
 
-        for i, result in enumerate(check_url_list(urls)):
-            results.append(result)
-            progress_bar.progress((i + 1) / len(urls))
-            status_text.caption(f"Checking {i + 1}/{len(urls)}: {result.url}")
-            df = _results_to_df(results)
-            results_container.dataframe(df, use_container_width=True, hide_index=True)
+            for i, result in enumerate(check_url_list(urls)):
+                results.append(result)
+                progress_bar.progress((i + 1) / len(urls))
+                status_text.caption(f"Checking {i + 1}/{len(urls)}: {result.url}")
+                df = _results_to_df(results)
+                results_container.dataframe(df, use_container_width=True, hide_index=True)
 
-        progress_bar.empty()
-        status_text.empty()
-        st.session_state["url_list_results"] = results
-        st.success(f"Done! Checked {len(results)} URLs.")
+            progress_bar.empty()
+            status_text.empty()
+            st.session_state["url_list_results"] = results
+            st.success(f"Done! Checked {len(results)} URLs.")
+        finally:
+            st.session_state["operation_in_progress"] = False
         if results:
             df = _results_to_df(results)
             _show_results_with_export(df, "url_list", "url-check-results")
@@ -687,39 +695,43 @@ def _show_ai_analysis(project_ctx: dict | None) -> None:
         pages_to_analyse = pages
 
     if pages_to_analyse:
-        total = len(pages_to_analyse)
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        succeeded = 0
-        failed = 0
+        st.session_state["operation_in_progress"] = True
+        try:
+            total = len(pages_to_analyse)
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            succeeded = 0
+            failed = 0
 
-        for i, page in enumerate(pages_to_analyse):
-            status_text.text(f"Analysing {i + 1} of {total} pages: {page['url'][:60]}...")
-            progress_bar.progress((i + 1) / total)
+            for i, page in enumerate(pages_to_analyse):
+                status_text.text(f"Analysing {i + 1} of {total} pages: {page['url'][:60]}...")
+                progress_bar.progress((i + 1) / total)
 
-            result = analyse_page(page, api_key)
-            if result:
-                ok = save_analysis(result, page["id"], project_id,
-                                   supabase_url, anon_key, token)
-                if ok:
-                    succeeded += 1
+                result = analyse_page(page, api_key)
+                if result:
+                    ok = save_analysis(result, page["id"], project_id,
+                                       supabase_url, anon_key, token)
+                    if ok:
+                        succeeded += 1
+                    else:
+                        failed += 1
                 else:
                     failed += 1
+
+                # Rate limit — 1s between requests
+                if i < total - 1:
+                    import time
+                    time.sleep(1)
+
+            progress_bar.empty()
+            status_text.empty()
+
+            if failed == 0:
+                st.success(f"Done! Analysed {succeeded}/{total} pages.")
             else:
-                failed += 1
-
-            # Rate limit — 1s between requests
-            if i < total - 1:
-                import time
-                time.sleep(1)
-
-        progress_bar.empty()
-        status_text.empty()
-
-        if failed == 0:
-            st.success(f"Done! Analysed {succeeded}/{total} pages.")
-        else:
-            st.warning(f"Done. {succeeded} succeeded, {failed} failed.")
+                st.warning(f"Done. {succeeded} succeeded, {failed} failed.")
+        finally:
+            st.session_state["operation_in_progress"] = False
 
         # Reload analyses after run
         analyses = _load_existing_analyses(token, project_id)

@@ -1075,12 +1075,18 @@ def show_dashboard():
         st.markdown(f"**{workspace['name']}**")
         st.caption(user.email)
 
+        # --- UI lock during long-running operations ---
+        _op_locked = st.session_state.get("operation_in_progress", False)
+        if _op_locked:
+            st.warning("Operation in progress — please wait")
+
         # Tool selector — _tool_override can set the value BEFORE the widget renders
         _tools = ["Rank Tracker", "Crawl", "Matrix", "AI Workspace", "Data Sources", "Settings"]
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
         _prev_tool = st.session_state.get("active_tool")
-        tool = st.radio("Tool", _tools, key="active_tool", label_visibility="collapsed")
+        tool = st.radio("Tool", _tools, key="active_tool", label_visibility="collapsed",
+                        disabled=_op_locked)
         if tool != _prev_tool:
             try:
                 from tracking.usage_tracker import log_usage_event
@@ -1097,7 +1103,8 @@ def show_dashboard():
                     if p["id"] == st.session_state.selected_project_id:
                         current_idx = i
                         break
-            selected_name = st.selectbox("Project", project_names, index=current_idx)
+            selected_name = st.selectbox("Project", project_names, index=current_idx,
+                                         disabled=_op_locked)
             selected_project = next(p for p in projects if p["name"] == selected_name)
             new_project_id = selected_project["id"]
 
@@ -1174,8 +1181,8 @@ def show_dashboard():
                             st.rerun()
 
         st.divider()
-        st.toggle("Dark mode", value=True, key="dark_mode")
-        if st.button("Logout"):
+        st.toggle("Dark mode", value=True, key="dark_mode", disabled=_op_locked)
+        if st.button("Logout", disabled=_op_locked):
             logout()
 
     # --- Handle OAuth callback (must run before UI renders) ---
@@ -1287,14 +1294,19 @@ def show_dashboard():
                 run_check = st.button(
                     f"Run Citation Check ({len(active_queries)} keywords)",
                     type="primary",
+                    disabled=st.session_state.get("operation_in_progress", False),
                 )
             with col_info:
                 st.caption(f"{len(active_queries)} keywords across {n_cats} categories")
 
             if run_check:
-                run_full_citation_check(
-                    project["id"], project["domain"], active_queries, PERPLEXITY_API_KEY
-                )
+                st.session_state["operation_in_progress"] = True
+                try:
+                    run_full_citation_check(
+                        project["id"], project["domain"], active_queries, PERPLEXITY_API_KEY
+                    )
+                finally:
+                    st.session_state["operation_in_progress"] = False
                 st.rerun()
 
     # --- Dashboard ---

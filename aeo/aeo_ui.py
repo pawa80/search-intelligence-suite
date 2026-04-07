@@ -428,8 +428,9 @@ def show_aeo_agent(
         key="aeo_model_tier",
     )
 
+    _op_locked = st.session_state.get("operation_in_progress", False)
     if st.button("Generate Playbook", type="primary", key="btn_generate_arbeidspakke",
-                  disabled=not selected_page.get("url")):
+                  disabled=not selected_page.get("url") or _op_locked):
         url = selected_page["url"]
 
         if selected_page.get("id") and intent != stored_intent:
@@ -442,69 +443,73 @@ def show_aeo_agent(
             except Exception:
                 pass
 
-        with st.spinner("Fetching and analysing page content..."):
-            analysis = analyze_url(url, openai_key)
+        st.session_state["operation_in_progress"] = True
+        try:
+            with st.spinner("Fetching and analysing page content..."):
+                analysis = analyze_url(url, openai_key)
 
-        if not analysis or not analysis.extraction_success:
-            st.error(f"Failed to fetch page content: {analysis.error_message if analysis else 'Unknown error'}")
-            return
+            if not analysis or not analysis.extraction_success:
+                st.error(f"Failed to fetch page content: {analysis.error_message if analysis else 'Unknown error'}")
+                return
 
-        # Build context block for prompt
-        context_block = build_context_block(context)
+            # Build context block for prompt
+            context_block = build_context_block(context)
 
-        # Use intent as selected_intents
-        selected_intents = [intent] if intent else []
+            # Use intent as selected_intents
+            selected_intents = [intent] if intent else []
 
-        _model_label = "o4-mini" if model_tier == "cheap" else "Claude Sonnet"
-        with st.spinner(f"Generating playbook with {_model_label}..."):
-            recs = generate_recommendations(
-                title=analysis.title,
-                full_content=analysis.full_content,
-                first_paragraph=analysis.first_paragraph,
-                direct_answer_score=analysis.direct_answer_score,
-                citation_results=[],
-                selected_intents=selected_intents,
-                api_key=openai_key,
-                context_block=context_block,
-                page_type=selected_page_type,
-                domain_context=st.session_state.get("domain_context"),
-                model_tier=model_tier,
+            _model_label = "o4-mini" if model_tier == "cheap" else "Claude Sonnet"
+            with st.spinner(f"Generating playbook with {_model_label}..."):
+                recs = generate_recommendations(
+                    title=analysis.title,
+                    full_content=analysis.full_content,
+                    first_paragraph=analysis.first_paragraph,
+                    direct_answer_score=analysis.direct_answer_score,
+                    citation_results=[],
+                    selected_intents=selected_intents,
+                    api_key=openai_key,
+                    context_block=context_block,
+                    page_type=selected_page_type,
+                    domain_context=st.session_state.get("domain_context"),
+                    model_tier=model_tier,
+                )
+
+            # Format as markdown
+            arbeidspakke_md = _format_arbeidspakke(
+                recs, context_block,
+                url=url,
+                title=analysis.title or selected_page.get("title") or "",
+                h1=selected_page.get("h1") or "",
+                intent=intent,
             )
 
-        # Format as markdown
-        arbeidspakke_md = _format_arbeidspakke(
-            recs, context_block,
-            url=url,
-            title=analysis.title or selected_page.get("title") or "",
-            h1=selected_page.get("h1") or "",
-            intent=intent,
-        )
+            # Add model footer to markdown
+            _model_display = "🚀 Expensive (Sonnet)" if model_tier == "expensive" else "💰 Reasonable (o4-mini)"
+            arbeidspakke_md += f"\n\n---\n*Generated with: {_model_display} | {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
 
-        # Add model footer to markdown
-        _model_display = "🚀 Expensive (Sonnet)" if model_tier == "expensive" else "💰 Reasonable (o4-mini)"
-        arbeidspakke_md += f"\n\n---\n*Generated with: {_model_display} | {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
+            # Store model info in context for history display
+            context["model_tier"] = model_tier
+            context["model_name"] = "gpt-4.1-mini-2025-04-14" if model_tier == "cheap" else "claude-sonnet-4-20250514"
 
-        # Store model info in context for history display
-        context["model_tier"] = model_tier
-        context["model_name"] = "gpt-4.1-mini-2025-04-14" if model_tier == "cheap" else "claude-sonnet-4-20250514"
+            # Save to session state for display
+            st.session_state["aeo_arbeidspakke"] = arbeidspakke_md
+            st.session_state["aeo_arbeidspakke_recs"] = recs
+            st.session_state["aeo_arbeidspakke_context"] = context
 
-        # Save to session state for display
-        st.session_state["aeo_arbeidspakke"] = arbeidspakke_md
-        st.session_state["aeo_arbeidspakke_recs"] = recs
-        st.session_state["aeo_arbeidspakke_context"] = context
-
-        # Save to Supabase
-        if selected_page.get("id"):
-            saved = _save_arbeidspakke(
-                token, project_id, selected_page["id"],
-                url, intent or "", arbeidspakke_md, context,
-            )
-            if saved:
-                st.success("Playbook saved to project.")
+            # Save to Supabase
+            if selected_page.get("id"):
+                saved = _save_arbeidspakke(
+                    token, project_id, selected_page["id"],
+                    url, intent or "", arbeidspakke_md, context,
+                )
+                if saved:
+                    st.success("Playbook saved to project.")
+                else:
+                    st.warning("Playbook generated but failed to save to database.")
             else:
-                st.warning("Playbook generated but failed to save to database.")
-        else:
-            st.info("Manual URL — playbook not saved (no page_id).")
+                st.info("Manual URL — playbook not saved (no page_id).")
+        finally:
+            st.session_state["operation_in_progress"] = False
 
     # Display output
     if st.session_state.get("aeo_arbeidspakke"):
