@@ -15,6 +15,42 @@ from crawler.sitemap_parser import fetch_sitemap_from_domain, check_sitemap_urls
 from crawler.ai_analyser import analyse_page, save_analysis, MODEL
 
 
+def _build_page_elements(r: CrawlResult) -> dict:
+    """Build page_elements JSONB from crawl result."""
+    # Parse H2 into list
+    h2_list = []
+    if r.seo.h2 and r.seo.h2 not in ("Missing", ""):
+        h2_list = [h.strip() for h in r.seo.h2.split(" | ") if h.strip()]
+
+    # Build OG tags dict
+    og_tags = {}
+    if r.seo.og_desc:
+        og_tags["og:description"] = r.seo.og_desc
+    if r.seo.og_url:
+        og_tags["og:url"] = r.seo.og_url
+
+    # Parse JSON-LD string into structured data
+    json_ld = []
+    if r.seo.jsonld:
+        try:
+            parsed = json.loads(r.seo.jsonld)
+            if isinstance(parsed, list):
+                json_ld = parsed
+            elif isinstance(parsed, dict):
+                json_ld = [parsed]
+        except (json.JSONDecodeError, TypeError):
+            json_ld = [{"raw": r.seo.jsonld[:500]}]
+
+    return {
+        "h2_structure": h2_list,
+        "og_tags": og_tags,
+        "json_ld": json_ld,
+        "hero_image_alt": r.seo.hero_alt if r.seo.hero_alt not in ("Missing", "") else None,
+        "referrer": r.referrer or None,
+        "crawl_time_seconds": round(r.response_time, 2) if r.response_time else None,
+    }
+
+
 def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
     """Save crawl results to pages table via UPSERT. Returns (saved, failed)."""
     from app import db_upsert
@@ -41,6 +77,7 @@ def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
                 "depth": r.depth,
                 "in_sitemap": r.in_sitemap == "Yes",
                 "last_crawled_at": now,
+                "page_elements": json.dumps(_build_page_elements(r)),
             }, on_conflict="project_id,url")
             saved += 1
         except Exception:
@@ -105,7 +142,7 @@ def _load_page_overview(token: str, project_id: str) -> list[dict]:
     from app import db_request
     try:
         return db_request("GET", "pages", token,
-                          params={"select": "id,url,title,status_code,page_type,intent,h1,meta_description,canonical_url,in_sitemap,depth,last_crawled_at",
+                          params={"select": "id,url,title,status_code,page_type,intent,h1,meta_description,canonical_url,in_sitemap,depth,last_crawled_at,page_elements",
                                   "project_id": f"eq.{project_id}",
                                   "status": "eq.active",
                                   "last_crawled_at": "not.is.null",
@@ -161,15 +198,52 @@ def _show_page_overview(project_ctx: dict) -> None:
                 crawl_fmt = raw_crawl[:10] if raw_crawl else "—"
 
             url = p.get("url", "")
+
+            # Extract page_elements (JSONB — may be dict or JSON string)
+            pe = p.get("page_elements") or {}
+            if isinstance(pe, str):
+                try:
+                    pe = json.loads(pe)
+                except (json.JSONDecodeError, TypeError):
+                    pe = {}
+
+            h2_list = pe.get("h2_structure") or []
+            h2_display = " | ".join(h2_list[:3])
+            if len(h2_list) > 3:
+                h2_display += f" (+{len(h2_list) - 3})"
+
+            og_tags = pe.get("og_tags") or {}
+            og_desc = og_tags.get("og:description") or "\u2014"
+            og_url = og_tags.get("og:url") or "\u2014"
+
+            json_ld_list = pe.get("json_ld") or []
+            json_ld_types = []
+            for item in json_ld_list:
+                if isinstance(item, dict) and "@type" in item:
+                    json_ld_types.append(item["@type"])
+            json_ld_display = ", ".join(json_ld_types) if json_ld_types else "\u2014"
+
+            hero_alt = pe.get("hero_image_alt") or "\u2014"
+            referrer = pe.get("referrer") or "\u2014"
+            crawl_time = pe.get("crawl_time_seconds")
+            time_display = f"{crawl_time:.1f}" if crawl_time is not None else "\u2014"
+
             table_rows.append({
                 "URL": url[:60] + ("..." if len(url) > 60 else ""),
                 "Title": (p.get("title") or "\u2014")[:50],
                 "Status": p.get("status_code", "\u2014"),
-                "H1": (p.get("h1") or "\u2014")[:40],
-                "Meta Desc": (p.get("meta_description") or "\u2014")[:40],
-                "Canonical": (p.get("canonical_url") or "\u2014")[:40],
-                "In Sitemap": "Yes" if p.get("in_sitemap") else "No" if p.get("in_sitemap") is False else "\u2014",
                 "Depth": p.get("depth") if p.get("depth") is not None else "\u2014",
+                "Referrer": referrer[:40] if referrer != "\u2014" else "\u2014",
+                "Time (s)": time_display,
+                "Meta Desc": (p.get("meta_description") or "\u2014")[:40],
+                "OG Desc": og_desc[:40] if og_desc != "\u2014" else "\u2014",
+                "H1": (p.get("h1") or "\u2014")[:40],
+                "H2": h2_display[:50] if h2_display else "\u2014",
+                "Hero Alt": hero_alt[:40] if hero_alt != "\u2014" else "\u2014",
+                "Canonical": (p.get("canonical_url") or "\u2014")[:40],
+                "OG URL": og_url[:40] if og_url != "\u2014" else "\u2014",
+                "In Sitemap": "Yes" if p.get("in_sitemap") else "No" if p.get("in_sitemap") is False else "\u2014",
+                "JSON-LD": json_ld_display[:40],
                 "Page Type": p.get("page_type") or "\u2014",
                 "Intent": (p.get("intent") or "\u2014")[:40],
                 "Last Crawled": crawl_fmt,
