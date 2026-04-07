@@ -313,14 +313,14 @@ def show_aeo_agent(
     # Step 1b: Page type selector
     _PAGE_TYPES = [
         "",
-        "Forside",
-        "Produktside",
-        "Blogginnlegg",
-        "Landingsside",
-        "FAQ-side",
-        "Om oss",
-        "Kategoriside",
-        "Kontaktside",
+        "Homepage",
+        "Product/Service Page",
+        "Blog Post",
+        "Landing Page",
+        "FAQ Page",
+        "About Page",
+        "Category Page",
+        "Contact Page",
     ]
 
     # Pre-select from stored page_type if available

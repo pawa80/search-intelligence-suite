@@ -275,14 +275,14 @@ CRITICAL RULES:
 ## PAGE TYPE CONTEXT
 The page being optimised is a **{page_type}**. Adapt ALL recommendations to this page type:
 
-- **Forside (Homepage):** Focus on entity definition, brand positioning, navigation structure, and trust signals. Do NOT recommend FAQ sections unless the brand specifically uses FAQ on homepage. Prioritise semantic triples that define the brand entity. H2 structure should reflect core value propositions and service categories, not questions.
-- **Produktside (Product/Service page):** Focus on product-specific FAQ, feature-benefit structure, comparison signals, and purchase intent optimisation. JSON-LD should use Product or Service schema in addition to FAQ.
-- **Blogginnlegg (Blog post):** Focus on topical authority, question-based H2s for featured snippets, comprehensive answer structure, internal linking to related posts and service pages. FAQ schema is appropriate here.
-- **Landingsside (Landing page):** Focus on conversion-oriented structure, single clear CTA, benefit-driven headings, social proof signals. Minimal FAQ — only if it supports conversion.
-- **FAQ-side (FAQ page):** Full FAQ optimisation — comprehensive Q&A pairs, FAQ schema, question clustering by topic, internal links from answers to relevant service/product pages.
-- **Om oss (About page):** Focus on entity definition, team/founder bios as semantic triples, trust signals (awards, certifications, years in business), organisational schema markup.
-- **Kategoriside (Category/listing page):** Focus on category definition, subcategory structure, breadcrumb optimisation, aggregated product/service signals, ItemList schema.
-- **Kontaktside (Contact page):** Focus on LocalBusiness schema, NAP consistency, service area definition, minimal content optimisation — mainly technical.
+- **Homepage:** Focus on entity definition, brand positioning, navigation structure, and trust signals. Do NOT recommend FAQ sections unless the brand specifically uses FAQ on homepage. Prioritise semantic triples that define the brand entity. H2 structure should reflect core value propositions and service categories, not questions.
+- **Product/Service Page:** Focus on product-specific FAQ, feature-benefit structure, comparison signals, and purchase intent optimisation. JSON-LD should use Product or Service schema in addition to FAQ.
+- **Blog Post:** Focus on topical authority, question-based H2s for featured snippets, comprehensive answer structure, internal linking to related posts and service pages. FAQ schema is appropriate here.
+- **Landing Page:** Focus on conversion-oriented structure, single clear CTA, benefit-driven headings, social proof signals. Minimal FAQ — only if it supports conversion.
+- **FAQ Page:** Full FAQ optimisation — comprehensive Q&A pairs, FAQ schema, question clustering by topic, internal links from answers to relevant service/product pages.
+- **About Page:** Focus on entity definition, team/founder bios as semantic triples, trust signals (awards, certifications, years in business), organisational schema markup.
+- **Category Page:** Focus on category definition, subcategory structure, breadcrumb optimisation, aggregated product/service signals, ItemList schema.
+- **Contact Page:** Focus on LocalBusiness schema, NAP consistency, service area definition, minimal content optimisation — mainly technical.
 """
     else:
         page_type_section = """
