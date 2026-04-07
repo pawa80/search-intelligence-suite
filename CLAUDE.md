@@ -406,7 +406,19 @@ Last session: Apr 7 2026
 - Existing pages show `—` for new columns until re-crawled.
 - Safety tag: `v3.6-persist-crawl-data`.
 
-**Backlog progress**: Session 1 plan (#35+#31+#19+#25+#30) all done, plus crawler persistence bonus. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#26+#28/#15+#32+#33+#34+R:A.
+**#19 v2 — Rank Tracker single-button revision** (commit `cd39152`):
+- Reverted per-category UI buttons (partial checks corrupted trend chart). Single "Run Citation Check (N keywords)" button.
+- Backend still batches by category with JWT refresh. Results accumulated in memory, **bulk-written only after ALL keywords complete**.
+- Trend chart filters out incomplete check dates (< 80% of current query count).
+- Safety tag: `v3.7-rank-tracker-single-check`.
+
+**#26 UI lock during long-running operations** (commit `b0c4256`):
+- `operation_in_progress` flag in session state disables sidebar nav, project selector, dark/light toggle, and logout during any long operation.
+- Applied to: citation check (`app.py`), crawl + URL check + AI analysis (`crawler/crawler_ui.py`), playbook generation (`aeo/aeo_ui.py`).
+- All wrapped in `try/finally` — guaranteed unlock on error. Warning banner shown when locked.
+- Safety tag: `v3.8-ui-lock-during-operations`.
+
+**Backlog progress**: Session 1 plan (#35+#31+#19+#25+#30) all done, plus #26, #19v2, crawler persistence. Next session plan from Notion: Session 2 = #9 (Sonnet prompt improvements from AEO research) + R:C (AI intent suggestion helper). Session 3 = #27+#28/#15+#32+#33+#34+R:A.
 
 ### Apr 3 2026 — Sidebar nav: selectbox → radio (v3.4)
 - Replaced `st.selectbox` with `st.radio` + `label_visibility="collapsed"` for sidebar tool selector
