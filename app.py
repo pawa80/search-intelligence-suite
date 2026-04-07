@@ -79,32 +79,32 @@ _DARK_VARS = """
 _LIGHT_VARS = """
 :root {
     --bg: #f8f9fb;
-    --sidebar-bg: #ffffff;
+    --sidebar-bg: #f3f4f6;
     --surface: #ffffff;
     --surface2: #f0f2f5;
-    --border: #e2e5ea;
-    --border2: #d0d4db;
+    --border: #d5d8de;
+    --border2: #c0c5cd;
     --text-primary: #1a1d24;
-    --text-muted: #5a6070;
-    --text-muted2: #8890a0;
-    --accent: #d48f00;
-    --accent-hover: #b87a00;
-    --accent-dim: rgba(212,143,0,0.10);
-    --accent-border: rgba(212,143,0,0.30);
-    --green: #0fa67e;
-    --green-dim: rgba(15,166,126,0.08);
-    --green-border: rgba(15,166,126,0.25);
-    --red: #d94452;
-    --red-dim: rgba(217,68,82,0.08);
-    --red-border: rgba(217,68,82,0.25);
-    --blue: #3b7cdb;
-    --blue-dim: rgba(59,124,219,0.08);
-    --blue-border: rgba(59,124,219,0.25);
-    --purple: #7c5fcf;
-    --purple-dim: rgba(124,95,207,0.08);
+    --text-muted: #3d4450;
+    --text-muted2: #5c6370;
+    --accent: #c07d00;
+    --accent-hover: #a06800;
+    --accent-dim: rgba(192,125,0,0.10);
+    --accent-border: rgba(192,125,0,0.30);
+    --green: #0d8a68;
+    --green-dim: rgba(13,138,104,0.08);
+    --green-border: rgba(13,138,104,0.25);
+    --red: #c5303e;
+    --red-dim: rgba(197,48,62,0.08);
+    --red-border: rgba(197,48,62,0.25);
+    --blue: #2e69b8;
+    --blue-dim: rgba(46,105,184,0.08);
+    --blue-border: rgba(46,105,184,0.25);
+    --purple: #6445b0;
+    --purple-dim: rgba(100,69,176,0.08);
     --btn-primary-text: #ffffff;
-    --scrollbar-thumb: #d0d4db;
-    --scrollbar-hover: #b0b8c4;
+    --scrollbar-thumb: #c0c5cd;
+    --scrollbar-hover: #a0a8b4;
 }
 """
 
@@ -147,7 +147,14 @@ code, pre, .stCode,
     font-size: 11px !important;
     text-transform: uppercase !important;
     letter-spacing: 0.06em !important;
-    color: var(--text-muted2) !important;
+    color: var(--text-muted) !important;
+}
+/* Nav radio options must be clearly readable */
+[data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
+    color: var(--text-primary) !important;
+    font-size: 13px !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
 }
 
 /* --- Main area --- */
@@ -295,7 +302,7 @@ code, pre, .stCode,
     border: 1px solid var(--border) !important;
 }
 .stRadio label {
-    color: var(--text-muted) !important;
+    color: var(--text-primary) !important;
 }
 
 /* --- Toggle / Switch --- */
