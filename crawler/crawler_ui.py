@@ -253,6 +253,186 @@ def _show_page_overview(project_ctx: dict) -> None:
         st.dataframe(table_rows, use_container_width=True, hide_index=True)
 
 
+_ROLE_COLOURS = {
+    "entity_anchor": "🟣",
+    "citation_target": "🟢",
+    "authority_builder": "🔵",
+    "conversion_endpoint": "🟠",
+    "cannibal_overlap": "🔴",
+}
+
+
+def _show_domain_strategy(project_ctx: dict) -> None:
+    """Show domain strategy section — generate or display."""
+    from app import db_request
+    from domain_strategy.strategy_generator import (
+        generate_domain_strategy, save_domain_strategy,
+    )
+
+    token = st.session_state.get("access_token")
+    if not token:
+        return
+
+    project_id = project_ctx["id"]
+
+    # Fetch current strategy from project
+    try:
+        projects = db_request("GET", "projects", token,
+                              params={"select": "domain_strategy,domain_strategy_generated_at",
+                                      "id": f"eq.{project_id}"})
+        proj_data = projects[0] if projects else {}
+    except Exception:
+        proj_data = {}
+
+    strategy = proj_data.get("domain_strategy") or {}
+    if isinstance(strategy, str):
+        try:
+            strategy = json.loads(strategy)
+        except (json.JSONDecodeError, TypeError):
+            strategy = {}
+    generated_at = proj_data.get("domain_strategy_generated_at")
+
+    st.divider()
+
+    has_strategy = bool(strategy and strategy.get("page_roles") and not strategy.get("parse_error"))
+    _op_locked = st.session_state.get("operation_in_progress", False)
+
+    if has_strategy:
+        # Format date
+        try:
+            gen_date = datetime.fromisoformat(generated_at.replace("Z", "+00:00")).strftime("%d %b %Y %H:%M")
+        except (ValueError, AttributeError, TypeError):
+            gen_date = str(generated_at)[:16] if generated_at else "unknown"
+
+        summary = strategy.get("domain_summary", {})
+        n_roles = len(strategy.get("page_roles", []))
+        n_cannibal = len(strategy.get("cannibalisation", []))
+        n_gaps = len(strategy.get("gaps", []))
+
+        st.markdown(f"**Domain Strategy** (generated {gen_date})")
+        st.caption(summary.get("business_description", ""))
+        st.caption(
+            f"Page roles assigned: {n_roles} · "
+            f"Cannibalisation warnings: {n_cannibal} · "
+            f"Content gaps identified: {n_gaps}"
+        )
+
+        with st.expander("View full strategy"):
+            # Page roles table
+            st.markdown("**Page Roles**")
+            role_rows = []
+            for pr in strategy.get("page_roles", []):
+                icon = _ROLE_COLOURS.get(pr.get("role"), "⬜")
+                role_rows.append({
+                    "URL": (pr.get("url") or "")[:50],
+                    "Role": f"{icon} {pr.get('role', '').replace('_', ' ')}",
+                    "Reasoning": (pr.get("reasoning") or "")[:80],
+                })
+            if role_rows:
+                st.dataframe(role_rows, use_container_width=True, hide_index=True)
+
+            # Cannibalisation warnings
+            cannibals = strategy.get("cannibalisation", [])
+            if cannibals:
+                st.markdown("**Cannibalisation Warnings**")
+                for c in cannibals:
+                    urls = ", ".join(c.get("urls", []))
+                    st.warning(f"**{urls}**\nShared queries: {', '.join(c.get('shared_queries', []))}\n{c.get('recommendation', '')}")
+
+            # Content gaps
+            gaps = strategy.get("gaps", [])
+            if gaps:
+                st.markdown("**Content Gaps**")
+                for g in gaps:
+                    prio = g.get("priority", "medium")
+                    icon = "🔴" if prio == "high" else "🟡" if prio == "medium" else "🟢"
+                    st.info(f"{icon} **{g.get('missing_topic', '')}** ({prio})\n{g.get('reasoning', '')}")
+
+            # Strategic rules
+            rules = strategy.get("strategic_rules", [])
+            if rules:
+                st.markdown("**Strategic Rules** (applied to all playbooks)")
+                for rule in rules:
+                    st.markdown(f"- {rule}")
+
+        if st.button("Regenerate Strategy", key=f"btn_regen_strategy_{project_id}",
+                      disabled=_op_locked):
+            _run_strategy_generation(project_ctx, token)
+
+    elif strategy.get("parse_error"):
+        st.markdown("**Domain Strategy** (parse error)")
+        st.warning("Strategy was generated but could not be parsed automatically.")
+        with st.expander("View raw strategy"):
+            st.code(strategy.get("raw_text", ""), language=None)
+        if st.button("Regenerate Strategy", key=f"btn_regen_strategy_{project_id}",
+                      disabled=_op_locked):
+            _run_strategy_generation(project_ctx, token)
+
+    else:
+        # No strategy yet
+        pages = _load_page_overview(token, project_id)
+        n_pages = len(pages)
+        if n_pages > 0:
+            st.markdown("**Domain Strategy**")
+            st.caption(
+                f"No domain strategy generated yet. Generate a holistic AEO strategy based on your "
+                f"{n_pages} crawled pages. This will assign each page a strategic role and ensure "
+                f"your playbooks are differentiated — not generic."
+            )
+            if st.button("Generate Domain Strategy", type="primary",
+                          key=f"btn_gen_strategy_{project_id}", disabled=_op_locked):
+                _run_strategy_generation(project_ctx, token)
+
+
+def _run_strategy_generation(project_ctx: dict, token: str) -> None:
+    """Execute domain strategy generation with UI lock."""
+    from app import db_request
+    from domain_strategy.strategy_generator import (
+        generate_domain_strategy, save_domain_strategy,
+    )
+
+    project_id = project_ctx["id"]
+
+    st.session_state["operation_in_progress"] = True
+    try:
+        # Load all data needed for strategy
+        pages = _load_page_overview(token, project_id)
+        if not pages:
+            st.warning("No crawled pages. Run a crawl first.")
+            return
+
+        # Load AI analyses
+        analyses = _load_existing_analyses(token, project_id)
+
+        # Load playbook counts per page
+        try:
+            ap_rows = db_request("GET", "arbeidspakker", token,
+                                 params={"select": "page_id",
+                                         "project_id": f"eq.{project_id}"})
+            playbook_counts: dict[str, int] = {}
+            for row in ap_rows:
+                pid = row.get("page_id")
+                if pid:
+                    playbook_counts[pid] = playbook_counts.get(pid, 0) + 1
+        except Exception:
+            playbook_counts = {}
+
+        with st.spinner(f"Analysing {len(pages)} pages holistically..."):
+            strategy = generate_domain_strategy(project_ctx, pages, analyses, playbook_counts)
+
+        if strategy:
+            saved = save_domain_strategy(token, project_id, strategy)
+            if saved:
+                st.success("Domain strategy generated and saved.")
+            else:
+                st.warning("Strategy generated but failed to save.")
+            st.rerun()
+        else:
+            st.error("Strategy generation failed.")
+    finally:
+        st.session_state["operation_in_progress"] = False
+
+
 def show_crawler(project_ctx: dict | None = None):
     """Main entry point for the crawler UI."""
     st.title("Crawl")
@@ -270,6 +450,7 @@ def show_crawler(project_ctx: dict | None = None):
     # Persistent page overview (loads from Supabase)
     if project_ctx:
         _show_page_overview(project_ctx)
+        _show_domain_strategy(project_ctx)
 
     tab_crawl, tab_sitemap, tab_ai = st.tabs(["Web Crawl", "Sitemap Check", "AI Analysis"])
 

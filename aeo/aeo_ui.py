@@ -273,6 +273,18 @@ def show_aeo_agent(
                 del st.session_state[key]
         st.session_state["_aeo_project_id"] = project_id
 
+    # Load domain strategy (cached per project in session state)
+    _strategy_key = f"_domain_strategy_{project_id}"
+    if _strategy_key not in st.session_state:
+        _ds = project_ctx.get("domain_strategy") or {}
+        if isinstance(_ds, str):
+            try:
+                _ds = json.loads(_ds)
+            except (json.JSONDecodeError, TypeError):
+                _ds = {}
+        st.session_state[_strategy_key] = _ds
+    _domain_strategy = st.session_state.get(_strategy_key, {})
+
     st.info(f"Project: **{project_ctx['name']}** · Domain: **{domain}**")
 
     # Step 1: Select page
@@ -422,6 +434,14 @@ def show_aeo_agent(
         _page_type = selected_page.get("page_type") or ""
         _domain_ctx = st.session_state.get("domain_context", "")
 
+        # Enrich with strategic role if available
+        if _domain_strategy and _domain_strategy.get("page_roles") and selected_page.get("id"):
+            for _pr in _domain_strategy.get("page_roles", []):
+                if _pr.get("page_id") == str(selected_page["id"]):
+                    _role_label = _pr.get("role", "").replace("_", " ")
+                    _domain_ctx += f"\nThis page's strategic role: {_role_label}. {_pr.get('reasoning', '')}"
+                    break
+
         if not st.session_state.get("operation_in_progress", False):
             with st.spinner("Generating intent suggestions..."):
                 suggestions = suggest_intents(
@@ -540,6 +560,8 @@ def show_aeo_agent(
                     page_type=selected_page_type,
                     domain_context=st.session_state.get("domain_context"),
                     model_tier=model_tier,
+                    domain_strategy=_domain_strategy if _domain_strategy.get("page_roles") else None,
+                    page_id=selected_page.get("id"),
                 )
 
             # Format as markdown

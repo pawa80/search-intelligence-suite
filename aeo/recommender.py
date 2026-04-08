@@ -186,7 +186,7 @@ class RecommendationResult:
     error: Optional[str] = None
 
 
-def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None, model_tier="expensive"):
+def generate_recommendations(title, full_content, first_paragraph, direct_answer_score, citation_results, selected_intents, api_key, context_block="", page_type=None, domain_context=None, model_tier="expensive", domain_strategy=None, page_id=None):
     """Generate a complete AEO playbook with full page rewrites matching the gold standard.
 
     v2.5: Model toggle — Claude Sonnet 4 (expensive, ~$0.11/gen) or OpenAI gpt-4.1-mini (cheap, ~$0.02/gen).
@@ -300,6 +300,14 @@ The following is universal context about this domain/brand. Use this information
 {domain_context.strip()}
 """
 
+    # Build domain strategy section (if available — differentiates this page from others)
+    domain_strategy_section = ""
+    if domain_strategy and page_id:
+        from domain_strategy.strategy_generator import build_strategy_context_for_page
+        domain_strategy_section = build_strategy_context_for_page(domain_strategy, page_id)
+        if domain_strategy_section:
+            domain_strategy_section = "\n" + domain_strategy_section + "\n"
+
     # --- Build system prompt (methodology + task instructions) ---
     system_prompt = f"""CRITICAL — OUTPUT LANGUAGE:
 Detect the language of the PAGE CONTENT provided in the user message. Write the ENTIRE playbook in that same language.
@@ -316,6 +324,7 @@ Do NOT default to Norwegian. Do NOT mix languages. The page content language is 
 You are an expert AEO (Answer Engine Optimization) consultant producing a complete AEO playbook for a client.
 {page_type_section}
 {domain_context_section}
+{domain_strategy_section}
 ## AEO METHODOLOGY REFERENCE
 {aeo_guide_content}
 {intelligence_section}

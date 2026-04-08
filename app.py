@@ -1123,11 +1123,11 @@ def show_dashboard():
                 ]
                 for k in _project_scoped_keys:
                     st.session_state.pop(k, None)
-                # Clear prefixed keys (AEO, crawler, checkbox widgets)
+                # Clear prefixed keys (AEO, crawler, checkbox widgets, strategy cache)
                 for k in list(st.session_state.keys()):
                     if (k.startswith("aeo_page_") or k.startswith("aeo_arbeidspakke")
                             or k.startswith("aeo_intent_") or k.startswith("aeo_custom_")
-                            or k.startswith("cb_")):
+                            or k.startswith("_domain_strategy_") or k.startswith("cb_")):
                         del st.session_state[k]
             st.session_state["_prev_project_id"] = new_project_id
 
@@ -1197,24 +1197,24 @@ def show_dashboard():
             st.rerun()
 
     # --- Route to selected tool ---
-    if st.session_state.get("active_tool") == "Crawl":
-        # Pass project context to crawler (if a project is selected)
-        project_ctx = None
+    def _build_project_ctx():
         if st.session_state.selected_project_id and projects:
             p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
             if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
-        show_crawler(project_ctx=project_ctx)
+                return {
+                    "id": p["id"], "name": p["name"], "domain": p.get("domain", ""),
+                    "domain_strategy": p.get("domain_strategy"),
+                    "domain_strategy_generated_at": p.get("domain_strategy_generated_at"),
+                }
+        return None
+
+    if st.session_state.get("active_tool") == "Crawl":
+        show_crawler(project_ctx=_build_project_ctx())
         return
 
     if st.session_state.get("active_tool") == "Matrix":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_matrise(
-            project_ctx=project_ctx,
+            project_ctx=_build_project_ctx(),
             token=token,
             workspace_id=workspace["id"],
             user_id=str(user.id),
@@ -1222,13 +1222,8 @@ def show_dashboard():
         return
 
     if st.session_state.get("active_tool") == "AI Workspace":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_aeo_agent(
-            project_ctx=project_ctx,
+            project_ctx=_build_project_ctx(),
             token=token,
             workspace_id=workspace["id"],
             user_id=str(user.id),
@@ -1236,13 +1231,8 @@ def show_dashboard():
         return
 
     if st.session_state.get("active_tool") == "Data Sources":
-        project_ctx = None
-        if st.session_state.selected_project_id and projects:
-            p = next((p for p in projects if p["id"] == st.session_state.selected_project_id), None)
-            if p:
-                project_ctx = {"id": p["id"], "name": p["name"], "domain": p.get("domain", "")}
         show_datasources(
-            project_ctx=project_ctx,
+            project_ctx=_build_project_ctx(),
             token=token,
             workspace_id=workspace["id"],
             user_id=str(user.id),
