@@ -264,10 +264,15 @@ _ROLE_COLOURS = {
 
 def _show_domain_strategy(project_ctx: dict) -> None:
     """Show domain strategy section — generate or display."""
-    from app import db_request
-    from domain_strategy.strategy_generator import (
-        generate_domain_strategy, save_domain_strategy,
-    )
+    try:
+        from app import db_request
+        from domain_strategy.strategy_generator import (
+            generate_domain_strategy, save_domain_strategy,
+        )
+    except Exception as e:
+        st.divider()
+        st.error(f"Domain Strategy module failed to load: {e}")
+        return
 
     token = st.session_state.get("access_token")
     if not token:
@@ -281,7 +286,9 @@ def _show_domain_strategy(project_ctx: dict) -> None:
                               params={"select": "domain_strategy,domain_strategy_generated_at",
                                       "id": f"eq.{project_id}"})
         proj_data = projects[0] if projects else {}
-    except Exception:
+    except Exception as e:
+        st.divider()
+        st.error(f"Failed to load project strategy: {e}")
         proj_data = {}
 
     strategy = proj_data.get("domain_strategy") or {}

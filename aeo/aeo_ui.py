@@ -398,6 +398,22 @@ def show_aeo_agent(
         context = {"crawl_analysis": None, "gsc": None, "ga": None}
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
 
+    # Domain Strategy status
+    _has_strategy = bool(_domain_strategy and _domain_strategy.get("page_roles") and not _domain_strategy.get("parse_error"))
+    if _has_strategy and selected_page.get("id"):
+        _page_role_info = None
+        for _pr in _domain_strategy.get("page_roles", []):
+            if _pr.get("page_id") == str(selected_page["id"]):
+                _page_role_info = _pr
+                break
+        if _page_role_info:
+            _role_label = _page_role_info["role"].replace("_", " ").title()
+            st.divider()
+            st.caption(f"**Strategic role:** {_role_label} — {_page_role_info.get('reasoning', '')}")
+    elif not _has_strategy:
+        st.divider()
+        st.caption("No domain strategy generated. Go to **Crawl** → **Generate Domain Strategy** for differentiated playbooks.")
+
     # Step 2: Validate user intents
     stored_intent = selected_page.get("intent") or ""
     st.divider()
