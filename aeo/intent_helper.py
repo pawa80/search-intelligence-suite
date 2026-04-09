@@ -46,6 +46,7 @@ def suggest_intents(
     """
     api_key = _get_secret("ANTHROPIC_API_KEY")
     if not api_key:
+        st.error("Intent suggestions: ANTHROPIC_API_KEY not configured")
         return []
 
     user_parts = [f"Page title: {title}"]
@@ -64,6 +65,13 @@ def suggest_intents(
 
     user_prompt = "\n".join(user_parts)
 
+    _request_body = {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 500,
+        "system": _SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": user_prompt}],
+    }
+
     try:
         r = httpx.post(
             "https://api.anthropic.com/v1/messages",
@@ -72,16 +80,12 @@ def suggest_intents(
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 500,
-                "system": _SYSTEM_PROMPT,
-                "messages": [{"role": "user", "content": user_prompt}],
-            },
+            json=_request_body,
             timeout=15.0,
         )
         if r.status_code != 200:
-            st.warning(f"Intent suggestion API error: {r.status_code} — {r.text[:200]}")
+            _err = f"Haiku API {r.status_code}: {r.text[:300]}"
+            st.error(f"Intent suggestions failed — {_err}")
             return []
         data = r.json()
 
@@ -92,19 +96,28 @@ def suggest_intents(
                 text += block["text"]
 
         if not text.strip():
-            st.warning("Intent suggestion: Haiku returned empty response")
+            st.error("Intent suggestions: Haiku returned empty response")
+            with st.expander("Debug: Haiku request/response"):
+                st.code(user_prompt[:2000], language="text")
+                st.json(data)
             return []
 
         # Parse JSON array
         intents = json.loads(text.strip())
         if isinstance(intents, list):
             return [str(i).strip() for i in intents if i]
-        st.warning(f"Intent suggestion: unexpected response format: {text[:200]}")
+        st.error(f"Intent suggestions: unexpected response format")
+        with st.expander("Debug: Haiku response"):
+            st.code(text[:500], language="text")
         return []
 
-    except json.JSONDecodeError as e:
-        st.warning(f"Intent suggestion: failed to parse Haiku response — {e}")
+    except json.JSONDecodeError:
+        st.error("Intent suggestions: failed to parse Haiku JSON response")
+        with st.expander("Debug: raw Haiku response"):
+            st.code(text[:1000], language="text")  # noqa: F821 — text defined in try block
         return []
     except Exception as e:
-        st.warning(f"Intent suggestion error: {e}")
+        st.error(f"Intent suggestions error: {type(e).__name__}: {e}")
+        with st.expander("Debug: request that failed"):
+            st.code(user_prompt[:2000], language="text")
         return []
