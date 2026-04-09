@@ -426,6 +426,49 @@ def show_aeo_agent(
     _page_title = selected_page.get("title") or selected_page.get("url", "")
     _page_h1 = selected_page.get("h1") or ""
     _page_word_count = selected_page.get("word_count") or 0
+    _first_500 = ""  # populated by live fetch fallback if needed
+    _live_headings = []  # heading dicts from live fetch
+
+    # Fallback: if page_elements is empty/thin, fetch the page live and cache
+    _has_content = bool(_h2_structure or _meta_desc or _page_h1)
+    _live_cache_key = f"aeo_live_analysis_{_page_key}"
+    if not _has_content and selected_page.get("url"):
+        if _live_cache_key not in st.session_state:
+            if not st.session_state.get("operation_in_progress", False):
+                with st.spinner("Fetching page content for preview..."):
+                    try:
+                        _live = analyze_url(selected_page["url"])
+                        if _live and _live.extraction_success:
+                            st.session_state[_live_cache_key] = {
+                                "title": _live.title,
+                                "first_paragraph": _live.first_paragraph,
+                                "first_500_words": _live.first_500_words,
+                                "headings": _live.headings or [],
+                                "word_count": _live.total_word_count,
+                                "h1": "",
+                            }
+                            # Extract H1 from headings
+                            for _hd in (_live.headings or []):
+                                if _hd.get("level") == "h1" and _hd.get("text"):
+                                    st.session_state[_live_cache_key]["h1"] = _hd["text"]
+                                    break
+                        else:
+                            st.session_state[_live_cache_key] = None
+                    except Exception:
+                        st.session_state[_live_cache_key] = None
+
+        _live_data = st.session_state.get(_live_cache_key)
+        if _live_data:
+            _page_title = _live_data["title"] or _page_title
+            _page_h1 = _live_data["h1"] or _page_h1
+            _page_word_count = _live_data["word_count"] or _page_word_count
+            _first_500 = _live_data.get("first_500_words", "")
+            _live_headings = _live_data.get("headings", [])
+            # Build H2 list from live headings
+            if not _h2_structure:
+                _h2_structure = [h["text"] for h in _live_headings if h.get("level") == "h2" and h.get("text")]
+            if not _meta_desc:
+                _meta_desc = (_live_data.get("first_paragraph") or "")[:300]
 
     # Build a content summary from available data for intent generation + preview
     _content_parts = []
@@ -443,12 +486,15 @@ def show_aeo_agent(
         _ld_types = [s.get("@type", "Unknown") for s in _json_ld if isinstance(s, dict)]
         if _ld_types:
             _content_parts.append(f"Schema types: {', '.join(_ld_types)}")
+    if _first_500:
+        _content_parts.append(f"First 500 words:\n{_first_500[:2000]}")
     _content_summary = "\n".join(_content_parts)
 
     # Content preview (D)
+    _content_source = "live fetch" if st.session_state.get(_live_cache_key) else "crawl data"
     st.divider()
     if _content_summary:
-        with st.expander(f"Content Preview ({_page_word_count} words crawled)", expanded=False):
+        with st.expander(f"Content Preview ({_page_word_count} words — {_content_source})", expanded=False):
             if _page_h1:
                 st.markdown(f"**H1:** {_page_h1}")
             if _meta_desc:
@@ -465,6 +511,9 @@ def show_aeo_agent(
                     st.markdown(f"**Schema markup:** {', '.join(_ld_types)}")
             if _pe.get("hero_image_alt"):
                 st.markdown(f"**Hero image alt:** {_pe['hero_image_alt']}")
+            if _first_500:
+                st.markdown("**First 500 words:**")
+                st.text(_first_500[:2000])
     else:
         st.caption("No content preview available — run a crawl to populate page data.")
 
