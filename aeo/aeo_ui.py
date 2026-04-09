@@ -429,10 +429,13 @@ def show_aeo_agent(
     _first_500 = ""  # populated by live fetch fallback if needed
     _live_headings = []  # heading dicts from live fetch
 
-    # Fallback: if page_elements is empty/thin, fetch the page live and cache
-    _has_content = bool(_h2_structure or _meta_desc or _page_h1)
+    # Fallback: if page_elements has no H2 structure, fetch the page live and cache.
+    # meta_description and h1 are direct columns on pages (always populated by crawl),
+    # but H2s/content only exist in page_elements JSONB (added in v3.6). Pages crawled
+    # before v3.6 have h1/meta but empty page_elements — we need the live fetch for those.
+    _has_rich_content = bool(_h2_structure)
     _live_cache_key = f"aeo_live_analysis_{_page_key}"
-    if not _has_content and selected_page.get("url"):
+    if not _has_rich_content and selected_page.get("url"):
         if _live_cache_key not in st.session_state:
             if not st.session_state.get("operation_in_progress", False):
                 with st.spinner("Fetching page content for preview..."):
@@ -454,8 +457,9 @@ def show_aeo_agent(
                                     break
                         else:
                             st.session_state[_live_cache_key] = None
-                    except Exception:
+                    except Exception as _fetch_err:
                         st.session_state[_live_cache_key] = None
+                        st.caption(f"Could not fetch page: {_fetch_err}")
 
         _live_data = st.session_state.get(_live_cache_key)
         if _live_data:
