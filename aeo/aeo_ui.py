@@ -522,7 +522,23 @@ def show_aeo_agent(
         st.caption("No content preview available — run a crawl to populate page data.")
 
     # Step 2: Validate user intents
-    stored_intent = selected_page.get("intent") or ""
+    _raw_stored_intent = selected_page.get("intent") or ""
+    # Parse stored intent — JSON (new) or comma-separated text (legacy)
+    _stored_intents_set = set()
+    _stored_manual = ""
+    if _raw_stored_intent:
+        try:
+            _parsed = json.loads(_raw_stored_intent)
+            if isinstance(_parsed, dict):
+                _stored_intents_set = set(_parsed.get("selected", []))
+                _stored_manual = _parsed.get("manual", "")
+            else:
+                # JSON but not a dict — treat as legacy
+                _stored_intents_set = {s.strip() for s in _raw_stored_intent.split(",") if s.strip()}
+        except (json.JSONDecodeError, TypeError):
+            # Legacy plain text format
+            _stored_intents_set = {s.strip() for s in _raw_stored_intent.split(",") if s.strip()}
+
     st.divider()
     st.subheader("Step 2: Validate user intents")
     st.caption(
@@ -533,11 +549,6 @@ def show_aeo_agent(
 
     # --- AI intent suggestions ---
     from aeo.intent_helper import suggest_intents
-
-    # Parse stored intents (comma-separated) for pre-selection
-    _stored_intents_set = set()
-    if stored_intent:
-        _stored_intents_set = {s.strip() for s in stored_intent.split(",") if s.strip()}
 
     # Generate or retrieve cached suggestions for this page
     _suggestions_key = f"aeo_intent_suggestions_{_page_key}"
@@ -588,8 +599,10 @@ def show_aeo_agent(
     else:
         st.info("No suggestions available — type your intents manually below.")
 
-    # Custom intent text area
+    # Custom intent text area — pre-fill from stored manual intents
     _custom_intent_key = f"aeo_custom_intent_{_page_key}"
+    if _custom_intent_key not in st.session_state and _stored_manual:
+        st.session_state[_custom_intent_key] = _stored_manual
     custom_intent = st.text_area(
         "Additional intents (one per line)",
         height=80,
@@ -648,8 +661,13 @@ def show_aeo_agent(
                     _elements = ", ".join(_bd["matched_elements"]) if _bd["matched_elements"] else "no match"
                     st.markdown(f"- **{_bd['intent']}** — {_elements}")
 
-    # Combine into intent string for prompt and saving
+    # Combine into intent string for prompt injection
     intent = ", ".join(selected_intents_list)
+
+    # Build JSON for saving (separates AI-selected from manual)
+    _selected_from_checkboxes = [s for s in selected_intents_list if s in (suggestions or [])]
+    _manual_text = (custom_intent or "").strip()
+    _intent_json = json.dumps({"selected": _selected_from_checkboxes, "manual": _manual_text}, ensure_ascii=False)
 
     # Step 3: Generate
     st.divider()
@@ -674,10 +692,10 @@ def show_aeo_agent(
                   disabled=not selected_page.get("url") or _op_locked):
         url = selected_page["url"]
 
-        if selected_page.get("id") and intent != stored_intent:
+        if selected_page.get("id") and _intent_json != _raw_stored_intent:
             _db_patch(token, "pages",
                       params={"id": f"eq.{selected_page['id']}"},
-                      body={"intent": intent if intent else None})
+                      body={"intent": _intent_json if selected_intents_list or _manual_text else None})
             try:
                 from tracking.usage_tracker import log_usage_event
                 log_usage_event("intent_saved", event_detail="page intent set", project_id=project_id)
