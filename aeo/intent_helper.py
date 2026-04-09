@@ -102,8 +102,26 @@ def suggest_intents(
                 st.json(data)
             return []
 
+        # Clean markdown fences and preamble before parsing
+        _clean = text.strip()
+        if "```" in _clean:
+            # Strip ```json ... ``` wrapping
+            parts = _clean.split("```")
+            for p in parts:
+                p = p.strip()
+                if p.startswith("json"):
+                    p = p[4:].strip()
+                if p.startswith("["):
+                    _clean = p
+                    break
+        # Strip any text before first [ and after last ]
+        _start = _clean.find("[")
+        _end = _clean.rfind("]")
+        if _start != -1 and _end != -1 and _end > _start:
+            _clean = _clean[_start:_end + 1]
+
         # Parse JSON array
-        intents = json.loads(text.strip())
+        intents = json.loads(_clean)
         if isinstance(intents, list):
             return [str(i).strip() for i in intents if i]
         st.error(f"Intent suggestions: unexpected response format")
@@ -114,7 +132,7 @@ def suggest_intents(
     except json.JSONDecodeError:
         st.error("Intent suggestions: failed to parse Haiku JSON response")
         with st.expander("Debug: raw Haiku response"):
-            st.code(text[:1000], language="text")  # noqa: F821 — text defined in try block
+            st.code(text[:1000] if text else "(empty)", language="text")
         return []
     except Exception as e:
         st.error(f"Intent suggestions error: {type(e).__name__}: {e}")
