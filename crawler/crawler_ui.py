@@ -77,7 +77,7 @@ def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
                 "depth": r.depth,
                 "in_sitemap": r.in_sitemap == "Yes",
                 "last_crawled_at": now,
-                "page_elements": json.dumps(_build_page_elements(r)),
+                "page_elements": _build_page_elements(r),
             }, on_conflict="project_id,url")
             saved += 1
         except Exception:
