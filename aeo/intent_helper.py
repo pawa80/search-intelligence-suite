@@ -15,13 +15,16 @@ def _get_secret(key: str) -> str:
         return os.getenv(key, "")
 
 
-_SYSTEM_PROMPT = """You are an AEO (Answer Engine Optimization) intent analyst. Given a web page's title, first paragraph, page type, and domain context, generate 8-12 intent phrases that this page could be optimised to rank for in AI answer engines (ChatGPT, Perplexity, Google AI Overviews).
+_SYSTEM_PROMPT = """You are an AEO (Answer Engine Optimization) intent analyst. Given a web page's metadata and content structure, generate 8-12 intent phrases that this page could be optimised to rank for in AI answer engines (ChatGPT, Perplexity, Google AI Overviews).
 
 Each intent phrase should be:
 - A natural language question or query a user might ask an AI engine
-- Directly relevant to the page content
+- Directly relevant to the page content and structure
 - Varied in specificity (some broad, some specific)
+- Grounded in the actual H2 headings and topics covered on the page
 - Written in the same language as the page content
+
+Put extra weight on the page title, H1, and H2 headings — these reveal the page's core topics. Use the meta description and content summary to understand the page's positioning and angle.
 
 Return ONLY a JSON array of strings. No other text.
 Example: ["what is customer data platform", "how to implement a CDP", "CDP vs DMP comparison"]"""
@@ -33,8 +36,14 @@ def suggest_intents(
     domain: str = "",
     domain_context: str = "",
     first_paragraph: str = "",
+    h2_headings: list[str] | None = None,
+    content_summary: str = "",
 ) -> list[str]:
-    """Call Claude Haiku to generate 8-12 intent suggestions. Returns list of strings."""
+    """Call Claude Haiku to generate 8-12 intent suggestions.
+
+    v4.2: Now accepts H2 headings and content summary for deeper
+    content-based intent generation (ported from standalone agent).
+    """
     api_key = _get_secret("ANTHROPIC_API_KEY")
     if not api_key:
         return []
@@ -47,7 +56,11 @@ def suggest_intents(
     if domain_context:
         user_parts.append(f"Domain context: {domain_context}")
     if first_paragraph:
-        user_parts.append(f"First paragraph: {first_paragraph[:500]}")
+        user_parts.append(f"Meta description: {first_paragraph[:500]}")
+    if h2_headings:
+        user_parts.append("H2 headings on this page:\n" + "\n".join(f"- {h}" for h in h2_headings[:20]))
+    if content_summary:
+        user_parts.append(f"Content summary:\n{content_summary[:1500]}")
 
     user_prompt = "\n".join(user_parts)
 

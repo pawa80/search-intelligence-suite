@@ -439,6 +439,59 @@ Create a checklist with bullet points grouped by category:
 
 ---
 
+## AEO RESEARCH-BACKED RULES (apply to all recommendations)
+
+These rules are backed by empirical AEO research data. Apply them to every playbook.
+
+### 1. Declarative H2 headings outperform question headings
+Declarative H2s receive 26% more AI citations than question-format H2s (4.3 vs 3.4 citations on average).
+When recommending H2 restructuring for Blog Posts, FAQ Pages, and Landing Pages, prefer declarative headings over question headings. Example: "How CDP implementations fail" → "Common CDP implementation failure patterns".
+This does NOT apply to Homepage or Product/Service pages (these rarely have content-heavy H2s).
+
+### 2. NEVER recommend FAQ schema on product/service pages
+FAQ schema on product pages REDUCES citations (3.8 vs 4.1 without). FAQ actively hurts product page citation rates.
+- Product Pages, Service Pages, and conversion-focused pages: NO FAQ schema, NO FAQ sections. Focus on Organisation schema, comparison schema, and trust signals instead.
+- Blog Posts, Guides, FAQ Pages: FAQ schema IS appropriate and should be recommended.
+
+### 3. Front-load answers in content
+44% of AI citations come from the first 30% of page content. Structure all content recommendations with front-loading: the core answer or key insight MUST appear in the first 30% of the page. Avoid long introductions, preambles, or "setting the scene" before delivering substantive content. In Section 2 rewrites, ensure the opening paragraphs contain the most citation-worthy information.
+
+### 4. Schema completeness — complete or omit entirely
+CRITICAL: Incomplete schema markup has an 18-point citation PENALTY compared to no schema at all. It is worse to have partial schema than none.
+- Every schema block you output MUST have all required and recommended fields populated with real data from the page.
+- If any recommended field would need a placeholder (e.g., "INSERT URL HERE", "YOUR ADDRESS"), do NOT include that schema type. Instead, note it as a manual task in the Section 6 checklist.
+- FAQPage schema must have at least 3 complete Q&A pairs. Organisation schema must have name, url, logo, description, and sameAs populated.
+
+### 5. Organisation + Person schema for entity establishment
+For pages classified as entity_anchor (by domain strategy), homepages, or about pages, include Organisation schema (or Person schema for individual brands) with these mandatory fields:
+- name, url, logo, description
+- sameAs: array of ALL official profiles (LinkedIn, Twitter/X, Wikidata, Crunchbase, G2, Capterra as applicable)
+- founder/employee as relevant
+The sameAs array is the single most impactful field for AI engine entity recognition. Only generate this schema if the page serves a brand/entity establishment purpose.
+
+### 6. AI crawler access audit (mandatory in Section 4)
+AI engines use their own crawlers: GPTBot, ClaudeBot, PerplexityBot, Google-Extended. Blocking them blocks citations.
+In Section 4 (Technical Implementation), ALWAYS include this audit item:
+"Verify that robots.txt does not block GPTBot, ClaudeBot, PerplexityBot, or Google-Extended. Also check meta robots tags and X-Robots-Tag headers. If any AI crawlers are blocked, unblocking them is HIGH priority — no other optimisation matters if crawlers cannot access the page."
+
+### 7. Entity/brand presence checklist (for entity-related pages)
+For entity_anchor pages, homepages, about pages, and brand-related content, include an entity presence checklist in Section 5 (SEO Improvements):
+- Wikidata entry exists with correct claims
+- LinkedIn company/personal profile linked via sameAs
+- Google Business Profile claimed and complete
+- Industry directories (G2, Capterra, Trustpilot as applicable)
+- sameAs linking from homepage to all profiles
+Each missing item is a gap in AI engine entity confidence. Priority order: Wikidata > LinkedIn > Google Business > directories.
+Only include this checklist when the page has an entity establishment role — skip for generic blog posts or category pages.
+
+### 8. Platform-specific impact tags
+Different AI platforms cite differently:
+- **Google AI Overviews**: Traditional SEO signals (title tags, meta descriptions, page speed, backlinks) have high influence. Treat these as table-stakes.
+- **ChatGPT / Perplexity / Claude**: Entity establishment, comprehensive coverage, structured data, and brand authority have higher influence than traditional SEO. Differentiation happens here.
+Do NOT split recommendations into platform-specific sections. Instead, when a specific recommendation has notably different platform impact, tag it inline (e.g., "This schema change primarily impacts ChatGPT/Perplexity citation rates" or "This meta description change is especially important for Google AI Overviews").
+
+---
+
 ## OUTPUT QUALITY RULES
 
 1. FULL REWRITES ONLY. Every section must contain COMPLETE replacement text. No "consider adding...", no "you could improve...", no snippets. The client must be able to paste every piece of text directly into their CMS.

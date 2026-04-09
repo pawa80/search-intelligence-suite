@@ -414,6 +414,60 @@ def show_aeo_agent(
         st.divider()
         st.caption("No domain strategy generated. Go to **Crawl** → **Generate Domain Strategy** for differentiated playbooks.")
 
+    # --- Extract page content data from page_elements for reuse ---
+    _pe = selected_page.get("page_elements") or {}
+    if isinstance(_pe, str):
+        try:
+            _pe = json.loads(_pe)
+        except (json.JSONDecodeError, TypeError):
+            _pe = {}
+    _h2_structure = _pe.get("h2_structure") or []
+    _meta_desc = selected_page.get("meta_description") or ""
+    _page_title = selected_page.get("title") or selected_page.get("url", "")
+    _page_h1 = selected_page.get("h1") or ""
+    _page_word_count = selected_page.get("word_count") or 0
+
+    # Build a content summary from available data for intent generation + preview
+    _content_parts = []
+    if _page_h1:
+        _content_parts.append(f"H1: {_page_h1}")
+    if _meta_desc:
+        _content_parts.append(f"Meta description: {_meta_desc}")
+    if _h2_structure:
+        _content_parts.append("H2 headings:\n" + "\n".join(f"- {h}" for h in _h2_structure[:20]))
+    _og_desc = (_pe.get("og_tags") or {}).get("og:description", "")
+    if _og_desc and _og_desc != _meta_desc:
+        _content_parts.append(f"OG description: {_og_desc}")
+    _json_ld = _pe.get("json_ld") or []
+    if _json_ld:
+        _ld_types = [s.get("@type", "Unknown") for s in _json_ld if isinstance(s, dict)]
+        if _ld_types:
+            _content_parts.append(f"Schema types: {', '.join(_ld_types)}")
+    _content_summary = "\n".join(_content_parts)
+
+    # Content preview (D)
+    st.divider()
+    if _content_summary:
+        with st.expander(f"Content Preview ({_page_word_count} words crawled)", expanded=False):
+            if _page_h1:
+                st.markdown(f"**H1:** {_page_h1}")
+            if _meta_desc:
+                st.markdown(f"**Meta description:** {_meta_desc}")
+            if _h2_structure:
+                st.markdown("**H2 structure:**")
+                for _h2 in _h2_structure[:20]:
+                    st.markdown(f"- {_h2}")
+                if len(_h2_structure) > 20:
+                    st.caption(f"...and {len(_h2_structure) - 20} more")
+            if _json_ld:
+                _ld_types = [s.get("@type", "Unknown") for s in _json_ld if isinstance(s, dict)]
+                if _ld_types:
+                    st.markdown(f"**Schema markup:** {', '.join(_ld_types)}")
+            if _pe.get("hero_image_alt"):
+                st.markdown(f"**Hero image alt:** {_pe['hero_image_alt']}")
+    else:
+        st.caption("No content preview available — run a crawl to populate page data.")
+
     # Step 2: Validate user intents
     stored_intent = selected_page.get("intent") or ""
     st.divider()
@@ -435,37 +489,28 @@ def show_aeo_agent(
     # Generate or retrieve cached suggestions for this page
     _suggestions_key = f"aeo_intent_suggestions_{_page_key}"
     if _suggestions_key not in st.session_state:
-        # Extract first paragraph from page_elements if available
-        _first_para = ""
-        pe = selected_page.get("page_elements") or {}
-        if isinstance(pe, str):
-            try:
-                pe = json.loads(pe)
-            except (json.JSONDecodeError, TypeError):
-                pe = {}
-        # Use meta_description as proxy for first paragraph if no page_elements
-        _first_para = (selected_page.get("meta_description") or "")[:300]
-
-        _page_title = selected_page.get("title") or selected_page.get("url", "")
-        _page_type = selected_page.get("page_type") or ""
-        _domain_ctx = st.session_state.get("domain_context", "")
+        # Build rich content context for Haiku (A: content-based intents)
+        _intent_page_type = selected_page.get("page_type") or ""
+        _intent_domain_ctx = st.session_state.get("domain_context", "")
 
         # Enrich with strategic role if available
         if _domain_strategy and _domain_strategy.get("page_roles") and selected_page.get("id"):
             for _pr in _domain_strategy.get("page_roles", []):
                 if _pr.get("page_id") == str(selected_page["id"]):
                     _role_label = _pr.get("role", "").replace("_", " ")
-                    _domain_ctx += f"\nThis page's strategic role: {_role_label}. {_pr.get('reasoning', '')}"
+                    _intent_domain_ctx += f"\nThis page's strategic role: {_role_label}. {_pr.get('reasoning', '')}"
                     break
 
         if not st.session_state.get("operation_in_progress", False):
             with st.spinner("Generating intent suggestions..."):
                 suggestions = suggest_intents(
                     title=_page_title,
-                    page_type=_page_type,
+                    page_type=_intent_page_type,
                     domain=domain,
-                    domain_context=_domain_ctx,
-                    first_paragraph=_first_para,
+                    domain_context=_intent_domain_ctx,
+                    first_paragraph=_meta_desc[:300],
+                    h2_headings=_h2_structure,
+                    content_summary=_content_summary,
                 )
             st.session_state[_suggestions_key] = suggestions
         else:
@@ -502,7 +547,7 @@ def show_aeo_agent(
             if line and line not in selected_intents_list:
                 selected_intents_list.append(line)
 
-    # Count and status
+    # Count, status, and relevance scoring (B)
     n_selected = len(selected_intents_list)
     if n_selected >= 3:
         st.success(f"Selected: {n_selected} intents — ready to audit!")
@@ -510,6 +555,43 @@ def show_aeo_agent(
         st.caption(f"Selected: {n_selected} intents (recommend 3-6 for best results)")
     else:
         st.caption("No intents selected yet")
+
+    # Intent Relevance Score (local heuristic, no AI call)
+    if n_selected > 0:
+        from aeo.intent_scorer import score_intent_relevance
+        _score = score_intent_relevance(
+            selected_intents=selected_intents_list,
+            title=_page_title,
+            h1=_page_h1,
+            meta_description=_meta_desc,
+            h2_headings=_h2_structure,
+        )
+        _total = _score["total_score"]
+
+        # Colour-coded score display
+        if _total >= 70:
+            _score_color = "green"
+            _score_label = "Strong match"
+        elif _total >= 40:
+            _score_color = "orange"
+            _score_label = "Moderate match"
+        else:
+            _score_color = "red"
+            _score_label = "Weak match"
+
+        st.markdown(f"**Intent Relevance Score: :{_score_color}[{_total}/100]** — {_score_label}")
+
+        with st.expander("Score breakdown", expanded=False):
+            _col_k, _col_c, _col_s = st.columns(3)
+            _col_k.metric("Keyword Overlap", f"{_score['keyword_overlap']}/40")
+            _col_c.metric("H2 Coverage", f"{_score['coverage']}/35")
+            _col_s.metric("Specificity", f"{_score['specificity']}/25")
+
+            if _score.get("breakdown"):
+                st.caption("Per-intent matching:")
+                for _bd in _score["breakdown"]:
+                    _elements = ", ".join(_bd["matched_elements"]) if _bd["matched_elements"] else "no match"
+                    st.markdown(f"- **{_bd['intent']}** — {_elements}")
 
     # Combine into intent string for prompt and saving
     intent = ", ".join(selected_intents_list)
