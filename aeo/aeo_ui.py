@@ -398,8 +398,16 @@ def show_aeo_agent(
         context = {"crawl_analysis": None, "gsc": None, "ga": None}
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
 
-    # Domain Strategy status
+    # Domain Strategy banner
     _has_strategy = bool(_domain_strategy and _domain_strategy.get("page_roles") and not _domain_strategy.get("parse_error"))
+    _ROLE_EMOJI = {
+        "entity_anchor": "\U0001f7e3",
+        "citation_target": "\U0001f7e2",
+        "authority_builder": "\U0001f535",
+        "conversion_endpoint": "\U0001f7e0",
+        "cannibal_overlap": "\U0001f534",
+    }
+    st.divider()
     if _has_strategy and selected_page.get("id"):
         _page_role_info = None
         for _pr in _domain_strategy.get("page_roles", []):
@@ -407,12 +415,23 @@ def show_aeo_agent(
                 _page_role_info = _pr
                 break
         if _page_role_info:
-            _role_label = _page_role_info["role"].replace("_", " ").title()
-            st.divider()
-            st.caption(f"**Strategic role:** {_role_label} — {_page_role_info.get('reasoning', '')}")
+            _role_raw = _page_role_info.get("role", "")
+            _role_label = _role_raw.replace("_", " ").title()
+            _role_emoji = _ROLE_EMOJI.get(_role_raw, "\U0001f3af")
+            _banner_lines = [f"{_role_emoji} **Strategic role: {_role_label}**"]
+            if _page_role_info.get("reasoning"):
+                _banner_lines.append(_page_role_info["reasoning"])
+            _pq = _page_role_info.get("priority_queries") or []
+            if _pq:
+                _banner_lines.append("**Priority queries:** " + ", ".join(f'"{q}"' for q in _pq[:5]))
+            _dnr = _page_role_info.get("do_not_recommend") or []
+            if _dnr:
+                _banner_lines.append("\u26a0\ufe0f **Do not recommend:** " + "; ".join(_dnr))
+            st.info("\n\n".join(_banner_lines))
+        else:
+            st.info("\U0001f3af No strategic role assigned for this page. Regenerate your domain strategy on the **Crawl** page to include recently added pages.")
     elif not _has_strategy:
-        st.divider()
-        st.caption("No domain strategy generated. Go to **Crawl** → **Generate Domain Strategy** for differentiated playbooks.")
+        st.info("\U0001f3af No domain strategy generated yet. Generate one on the **Crawl** page to get differentiated playbooks for each page.")
 
     # --- Extract page content data from page_elements for reuse ---
     _pe = selected_page.get("page_elements") or {}
