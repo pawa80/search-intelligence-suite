@@ -565,9 +565,11 @@ def show_aeo_agent(
                     h2_headings=_h2_structure,
                     content_summary=_content_summary,
                 )
-            st.session_state[_suggestions_key] = suggestions
+            if suggestions:
+                st.session_state[_suggestions_key] = suggestions
+            # Don't cache empty results — allows retry on next render
         else:
-            st.session_state[_suggestions_key] = []
+            pass  # Don't cache during operation lock — will retry after unlock
 
     suggestions = st.session_state.get(_suggestions_key, [])
 

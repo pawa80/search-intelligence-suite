@@ -78,9 +78,11 @@ def suggest_intents(
                 "system": _SYSTEM_PROMPT,
                 "messages": [{"role": "user", "content": user_prompt}],
             },
-            timeout=10.0,
+            timeout=15.0,
         )
-        r.raise_for_status()
+        if r.status_code != 200:
+            st.warning(f"Intent suggestion API error: {r.status_code} — {r.text[:200]}")
+            return []
         data = r.json()
 
         # Extract text from response
@@ -89,11 +91,20 @@ def suggest_intents(
             if block.get("type") == "text":
                 text += block["text"]
 
+        if not text.strip():
+            st.warning("Intent suggestion: Haiku returned empty response")
+            return []
+
         # Parse JSON array
         intents = json.loads(text.strip())
         if isinstance(intents, list):
             return [str(i).strip() for i in intents if i]
+        st.warning(f"Intent suggestion: unexpected response format: {text[:200]}")
         return []
 
-    except Exception:
+    except json.JSONDecodeError as e:
+        st.warning(f"Intent suggestion: failed to parse Haiku response — {e}")
+        return []
+    except Exception as e:
+        st.warning(f"Intent suggestion error: {e}")
         return []
