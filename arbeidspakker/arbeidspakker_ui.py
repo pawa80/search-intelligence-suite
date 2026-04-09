@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import streamlit as st
@@ -123,11 +124,14 @@ def show_arbeidspakker_library(
             btn_cols = st.columns(2)
             # Download button
             md_content = r.get("arbeidspakke_markdown", "")
-            safe_url = url_display.replace("/", "_").replace(".", "_")[:40]
+            _ap_parsed = urlparse(r.get("url", ""))
+            _ap_domain = (_ap_parsed.netloc.lower().replace("www.", "").replace(".", "-"))[:30]
+            _ap_path_raw = _ap_parsed.path.strip("/").replace("/", "-").replace(".", "-")
+            _ap_path_slug = _ap_path_raw[:40] if _ap_path_raw else "homepage"
             btn_cols[0].download_button(
                 "Download .md",
                 data=md_content,
-                file_name=f"playbook-{safe_url}.md",
+                file_name=f"playbook-{_ap_domain}-{_ap_path_slug}-{gen_date[:10]}.md",
                 mime="text/markdown",
                 key=f"ap_dl_{idx}",
             )

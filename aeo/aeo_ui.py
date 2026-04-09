@@ -759,14 +759,16 @@ def show_aeo_agent(
         st.divider()
         st.markdown(_clean_playbook_md(st.session_state["aeo_arbeidspakke"]))
 
-        # Download — filename includes page slug
+        # Download — filename includes domain + page path slug
         _dl_url = selected_page.get("url", "")
-        _dl_path = urlparse(_dl_url).path.strip("/").split("/")[-1] if _dl_url else ""
-        _dl_slug = _dl_path.replace(".", "-")[:40] if _dl_path else "page"
+        _dl_parsed = urlparse(_dl_url) if _dl_url else None
+        _dl_domain = (_dl_parsed.netloc.lower().replace("www.", "").replace(".", "-") if _dl_parsed else "site")[:30]
+        _dl_path_raw = (_dl_parsed.path.strip("/") if _dl_parsed else "").replace("/", "-").replace(".", "-")
+        _dl_path_slug = _dl_path_raw[:40] if _dl_path_raw else "homepage"
         st.download_button(
             "Download as .md",
             data=st.session_state["aeo_arbeidspakke"],
-            file_name=f"playbook-{_dl_slug}-{datetime.now().strftime('%Y-%m-%d')}.md",
+            file_name=f"playbook-{_dl_domain}-{_dl_path_slug}-{datetime.now().strftime('%Y-%m-%d')}.md",
             mime="text/markdown",
             key="btn_download_arbeidspakke",
         )
