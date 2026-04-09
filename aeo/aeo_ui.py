@@ -376,6 +376,18 @@ def show_aeo_agent(
             col2.markdown(f"**AEO Readiness:** {_score_badge(c.get('aeo_readiness_score'))}")
             col3.markdown(f"**Content Quality:** {_score_badge(c.get('content_quality_score'))}")
 
+        # Check if Google is connected (cached per session)
+        _gc_key = f"_google_connected_{workspace_id}"
+        if _gc_key not in st.session_state:
+            _gc_rows = _db_get(token, "google_connections", {
+                "select": "gsc_property,ga4_property_id",
+                "workspace_id": f"eq.{workspace_id}",
+                "user_id": f"eq.{user_id}",
+                "limit": "1",
+            })
+            st.session_state[_gc_key] = _gc_rows[0] if _gc_rows else None
+        _gc = st.session_state.get(_gc_key)
+
         col_gsc, col_ga = st.columns(2)
         if context.get("gsc"):
             g = context["gsc"]
@@ -383,8 +395,10 @@ def show_aeo_agent(
                 f"**GSC:** {g.get('clicks')} clicks · {g.get('impressions')} impr · "
                 f"Pos {g.get('position', '—')} · CTR {(g.get('ctr') or 0) * 100:.1f}%"
             )
+        elif _gc and _gc.get("gsc_property"):
+            col_gsc.caption("GSC connected — import data in **Data Sources** to see metrics here")
         else:
-            col_gsc.caption("No GSC data available")
+            col_gsc.caption("GSC not connected — connect in **Data Sources**")
 
         if context.get("ga"):
             a = context["ga"]
@@ -392,8 +406,10 @@ def show_aeo_agent(
                 f"**GA4:** {a.get('sessions')} sessions · "
                 f"{(a.get('engagement_rate') or 0) * 100:.1f}% engagement"
             )
+        elif _gc and _gc.get("ga4_property_id"):
+            col_ga.caption("GA4 connected — import data in **Data Sources** to see metrics here")
         else:
-            col_ga.caption("No GA4 data available")
+            col_ga.caption("GA4 not connected — connect in **Data Sources**")
     else:
         context = {"crawl_analysis": None, "gsc": None, "ga": None}
         st.caption("Manual URL — no suite data available. Audit will run on page content only.")
