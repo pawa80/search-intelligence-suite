@@ -426,10 +426,15 @@ def show_aeo_agent(
     st.divider()
     if _has_strategy and selected_page.get("id"):
         _page_role_info = None
+        _lookup_id = str(selected_page["id"])
+        _strategy_ids = [_pr.get("page_id") for _pr in _domain_strategy.get("page_roles", [])]
         for _pr in _domain_strategy.get("page_roles", []):
-            if _pr.get("page_id") == str(selected_page["id"]):
+            if _pr.get("page_id") == _lookup_id:
                 _page_role_info = _pr
                 break
+        if not _page_role_info:
+            with st.expander("Debug: strategy page_id mismatch", expanded=False):
+                st.code(f"Looking for: {repr(_lookup_id)}\nStrategy IDs: {_strategy_ids[:5]}", language="text")
         if _page_role_info:
             _role_raw = _page_role_info.get("role", "")
             _role_label = _role_raw.replace("_", " ").title()
