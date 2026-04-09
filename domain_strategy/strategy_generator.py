@@ -30,6 +30,8 @@ STRATEGIC PAGE ROLES (assign exactly one per page):
 5. cannibal_overlap — Pages competing for the same queries. Strategy must decide: merge, differentiate, or archive one.
 6. gap — Not an existing page. A topic that should have a page but doesn't.
 
+CRITICAL RULE: The page_roles array MUST contain exactly one entry for EVERY page listed in the input. Do NOT skip any pages. Every page needs a strategic role, even if the role is obvious (e.g. homepage = entity_anchor). If you are unsure, assign authority_builder as the default. The user relies on every page having a role assigned.
+
 OUTPUT FORMAT: Return ONLY valid JSON matching this exact structure (no markdown, no backticks, no preamble):
 {
   "domain_summary": {
@@ -144,7 +146,7 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
             },
             json={
                 "model": "claude-sonnet-4-20250514",
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "system": _SYSTEM_PROMPT,
                 "messages": [{"role": "user", "content": user_prompt}],
             },
@@ -159,9 +161,33 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
             if block.get("type") == "text":
                 text += block["text"]
 
-        # Parse JSON
+        # Parse JSON — strip markdown fences if present
+        _clean = text.strip()
+        if "```" in _clean:
+            parts = _clean.split("```")
+            for p in parts:
+                p = p.strip()
+                if p.startswith("json"):
+                    p = p[4:].strip()
+                if p.startswith("{"):
+                    _clean = p
+                    break
+        _start = _clean.find("{")
+        _end = _clean.rfind("}")
+        if _start != -1 and _end != -1 and _end > _start:
+            _clean = _clean[_start:_end + 1]
+
         try:
-            strategy = json.loads(text.strip())
+            strategy = json.loads(_clean)
+
+            # Validate: warn if Sonnet skipped pages
+            _input_ids = {str(p.get("id", "")) for p in pages}
+            _output_ids = {r.get("page_id") for r in strategy.get("page_roles", [])}
+            _missing = _input_ids - _output_ids
+            if _missing:
+                st.warning(f"Strategy covers {len(_output_ids)}/{len(_input_ids)} pages. "
+                           f"{len(_missing)} pages have no role assigned — regenerate for full coverage.")
+
             return strategy
         except json.JSONDecodeError:
             # Fallback: store raw text
