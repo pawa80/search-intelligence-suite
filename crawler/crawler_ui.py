@@ -431,13 +431,18 @@ def _run_strategy_generation(project_ctx: dict, token: str) -> None:
             saved = save_domain_strategy(token, project_id, strategy)
             if saved:
                 st.success("Domain strategy generated and saved.")
+                # Clear stale caches so overview + banner pick up new strategy
+                st.session_state.pop(f"_domain_strategy_{project_id}", None)
+                st.session_state.pop(f"_overview_data_{project_id}", None)
             else:
                 st.warning("Strategy generated but failed to save.")
-            st.rerun()
         else:
             st.error("Strategy generation failed.")
     finally:
         st.session_state["operation_in_progress"] = False
+    # Rerun AFTER finally has released the lock
+    if strategy:
+        st.rerun()
 
 
 def show_crawler(project_ctx: dict | None = None):

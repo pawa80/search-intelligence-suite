@@ -376,7 +376,7 @@ code, pre, .stCode,
 
 /* --- Tabs --- */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 0px;
+    gap: 8px;
     border-bottom: 1px solid var(--border) !important;
 }
 .stTabs [data-baseweb="tab"] {
@@ -384,6 +384,7 @@ code, pre, .stCode,
     border-bottom: 2px solid transparent !important;
     font-size: 13px !important;
     font-weight: 400 !important;
+    padding: 8px 12px !important;
 }
 .stTabs [data-baseweb="tab"]:hover {
     color: var(--text-primary) !important;
