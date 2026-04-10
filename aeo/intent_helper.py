@@ -83,6 +83,9 @@ def suggest_intents(
             json=_request_body,
             timeout=15.0,
         )
+        if r.status_code == 529:
+            st.warning("Our AI service is temporarily busy. Intent suggestions will be available shortly — please try again in a few minutes.")
+            return []
         if r.status_code != 200:
             _err = f"Haiku API {r.status_code}: {r.text[:300]}"
             st.error(f"Intent suggestions failed — {_err}")

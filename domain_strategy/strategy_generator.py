@@ -153,7 +153,12 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
             },
             timeout=120.0,
         )
-        r.raise_for_status()
+        if r.status_code == 529:
+            st.warning("Our AI service is temporarily busy. Your existing strategy is safe. Please try again in 5 minutes.")
+            return None
+        if r.status_code >= 400:
+            st.error(f"Strategy generation API error: {r.status_code} — {r.text[:200]}")
+            return None
         data = r.json()
 
         # Extract text

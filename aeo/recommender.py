@@ -616,8 +616,12 @@ REMINDER: The page content below determines the output language. Detect its lang
         }
 
     except Exception as e:
+        _msg = str(e)
+        # Catch Anthropic API overloaded (529)
+        if "529" in _msg or "overloaded" in _msg.lower():
+            _msg = "Our AI service is temporarily busy. Your existing playbooks are safe. Please try again in 5 minutes."
         return {
-            "summary": f"Error generating playbook: {str(e)}",
+            "summary": f"Error generating playbook: {_msg}",
             "intelligence_applied": [],
             "critical_issues": [],
             "action_plan": [],
