@@ -416,6 +416,9 @@ def show_aeo_agent(
 
     # Domain Strategy banner
     _has_strategy = bool(_domain_strategy and _domain_strategy.get("page_roles") and not _domain_strategy.get("parse_error"))
+    st.caption(f"DEBUG BANNER: _has_strategy={_has_strategy}, page_id={selected_page.get('id', 'NONE')}, "
+               f"strategy_keys={list(_domain_strategy.keys())[:5] if _domain_strategy else 'EMPTY'}, "
+               f"roles_count={len(_domain_strategy.get('page_roles', [])) if _domain_strategy else 0}")
     _ROLE_EMOJI = {
         "entity_anchor": "\U0001f7e3",
         "citation_target": "\U0001f7e2",
