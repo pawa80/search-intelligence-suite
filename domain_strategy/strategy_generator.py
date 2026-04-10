@@ -199,10 +199,47 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
 
 
 def save_domain_strategy(token: str, project_id: str, strategy: dict) -> bool:
-    """Save strategy to projects.domain_strategy via PATCH."""
-    url = f"{_get_secret('SUPABASE_URL')}/rest/v1/projects"
+    """Save strategy to projects.domain_strategy via PATCH.
+
+    Safety: validates strategy has non-empty page_roles before saving.
+    Backs up current strategy to domain_strategy_previous first.
+    """
+    # Validate — never overwrite with empty/broken strategy
+    if not strategy or strategy.get("parse_error"):
+        st.error("Strategy validation failed — not saving. Existing strategy preserved.")
+        return False
+    if not strategy.get("page_roles"):
+        st.error("Strategy has no page_roles — not saving. Existing strategy preserved.")
+        return False
+
+    base_url = _get_secret("SUPABASE_URL")
+    anon_key = _get_secret("SUPABASE_ANON_KEY")
+
+    # Backup current strategy to domain_strategy_previous
+    try:
+        _headers = {
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+        }
+        _r = httpx.get(f"{base_url}/rest/v1/projects",
+                       headers=_headers,
+                       params={"select": "domain_strategy", "id": f"eq.{project_id}"},
+                       timeout=10.0)
+        if _r.status_code < 400:
+            _rows = _r.json()
+            if _rows and _rows[0].get("domain_strategy"):
+                _backup_headers = {**_headers, "Content-Type": "application/json", "Prefer": "return=minimal"}
+                httpx.patch(f"{base_url}/rest/v1/projects",
+                            headers=_backup_headers,
+                            params={"id": f"eq.{project_id}"},
+                            json={"domain_strategy_previous": _rows[0]["domain_strategy"]},
+                            timeout=10.0)
+    except Exception:
+        pass  # Backup is best-effort — don't block save
+
+    url = f"{base_url}/rest/v1/projects"
     headers = {
-        "apikey": _get_secret("SUPABASE_ANON_KEY"),
+        "apikey": anon_key,
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Prefer": "return=representation",
