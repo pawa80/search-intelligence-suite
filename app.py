@@ -1081,7 +1081,7 @@ def show_dashboard():
             st.warning("Operation in progress — please wait")
 
         # Tool selector — _tool_override can set the value BEFORE the widget renders
-        _tools = ["Rank Tracker", "Crawl", "Matrix", "AI Workspace", "Data Sources", "Settings"]
+        _tools = ["Project Overview", "Rank Tracker", "Crawl", "Matrix", "AI Workspace", "Data Sources", "Settings"]
         if "_tool_override" in st.session_state:
             st.session_state["active_tool"] = st.session_state.pop("_tool_override")
         _prev_tool = st.session_state.get("active_tool")
@@ -1127,7 +1127,8 @@ def show_dashboard():
                 for k in list(st.session_state.keys()):
                     if (k.startswith("aeo_page_") or k.startswith("aeo_arbeidspakke")
                             or k.startswith("aeo_intent_") or k.startswith("aeo_custom_")
-                            or k.startswith("_domain_strategy_") or k.startswith("cb_")):
+                            or k.startswith("_domain_strategy_") or k.startswith("_overview_data_")
+                            or k.startswith("_google_connected_") or k.startswith("cb_")):
                         del st.session_state[k]
             st.session_state["_prev_project_id"] = new_project_id
 
@@ -1203,10 +1204,21 @@ def show_dashboard():
             if p:
                 return {
                     "id": p["id"], "name": p["name"], "domain": p.get("domain", ""),
+                    "domain_context": p.get("domain_context"),
                     "domain_strategy": p.get("domain_strategy"),
                     "domain_strategy_generated_at": p.get("domain_strategy_generated_at"),
                 }
         return None
+
+    if st.session_state.get("active_tool") == "Project Overview":
+        from overview.overview_ui import show_overview
+        show_overview(
+            project_ctx=_build_project_ctx(),
+            token=token,
+            workspace_id=workspace["id"],
+            user_id=str(user.id),
+        )
+        return
 
     if st.session_state.get("active_tool") == "Crawl":
         show_crawler(project_ctx=_build_project_ctx())
