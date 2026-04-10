@@ -70,7 +70,8 @@ OUTPUT FORMAT: Return ONLY valid JSON matching this exact structure (no markdown
   "strategic_rules": [
     "Rule 1 that applies to all playbook generation for this domain",
     "Rule 2..."
-  ]
+  ],
+  "strategy_narrative": "A 150-300 word qualitative writeup of the domain strategy in plain English. Write it as if briefing a marketing manager who needs to understand their site's AEO positioning at a glance. Group pages by role, explain why each group matters, mention specific high-value pages by name/URL, note any cannibalisation or gaps, and suggest next actions (e.g. generate playbooks for your top citation targets). Use plain language: say 'brand identity page' not 'entity_anchor', say 'citation target' not 'citation_target'. Include the count of pages per role."
 }"""
 
 

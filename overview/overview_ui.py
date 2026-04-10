@@ -170,62 +170,98 @@ def show_overview(
 
     # === Section 1: YOUR DOMAIN STRATEGY ===
     st.subheader("Your Domain Strategy")
+
+    # Parse domain strategy once for reuse
+    _ds_raw = project_ctx.get("domain_strategy") or {}
+    if isinstance(_ds_raw, str):
+        try:
+            _ds = json.loads(_ds_raw)
+        except (json.JSONDecodeError, TypeError):
+            _ds = {}
+    else:
+        _ds = _ds_raw
+    page_roles = _ds.get("page_roles", []) if _ds and not _ds.get("parse_error") else []
+
     col_user, col_ai = st.columns(2)
 
-    # Left: User Input (domain context)
+    # Left: Domain Strategy — Your Input
     with col_user:
-        st.markdown("**User Input**")
+        st.markdown("**Domain Strategy — Your Input**")
         domain_context = project_ctx.get("domain_context") or st.session_state.get("domain_context", "")
         if domain_context:
-            # Show first 3 lines, expandable
             lines = domain_context.strip().split("\n")
-            preview = "\n".join(lines[:3])
             if len(lines) > 3:
+                preview = "\n".join(lines[:3])
                 with st.expander(f"{preview}\n\n...CLICK TO EXPAND", expanded=False):
                     st.markdown(domain_context)
             else:
                 st.markdown(domain_context)
         else:
             st.caption("Add your domain context in Project Settings to improve playbook quality.")
-        _nav_button("Edit Your Strategy Manifest", "Settings", f"ov_edit_strategy_{project_id}")
+        # Navigate to Project Settings sidebar expander
+        if st.button("Edit Your Strategy Manifest", key=f"ov_edit_strategy_{project_id}"):
+            st.session_state["_tool_override"] = "Project Overview"
+            st.info("Edit your domain context in the **Project Settings** expander in the sidebar.")
 
-    # Right: AI Derived (domain strategy roles)
+    # Right: AI Derived Domain Strategy
     with col_ai:
-        st.markdown("**AI Derived**")
-        _ds_raw = project_ctx.get("domain_strategy") or {}
-        if isinstance(_ds_raw, str):
-            try:
-                _ds = json.loads(_ds_raw)
-            except (json.JSONDecodeError, TypeError):
-                _ds = {}
-        else:
-            _ds = _ds_raw
-
-        page_roles = _ds.get("page_roles", []) if _ds and not _ds.get("parse_error") else []
+        st.markdown("**AI Derived Domain Strategy**")
 
         if page_roles:
-            for pr in page_roles:
-                role_raw = pr.get("role", "")
-                emoji = _ROLE_EMOJI.get(role_raw, "\U0001f3af")
-                label = _ROLE_LABEL.get(role_raw, role_raw.replace("_", " ").title())
-                url_display = pr.get("url", "")
-                # Truncate URL for display
-                try:
-                    parsed = urlparse(url_display)
-                    path = parsed.path.strip("/")
-                    url_short = f"/{path}" if path else "/"
-                except Exception:
-                    url_short = url_display[:40]
-                st.markdown(f"{emoji} **{label}** · `{url_short}`")
+            # Show narrative if available, otherwise generate summary from roles
+            narrative = _ds.get("strategy_narrative", "")
+            if narrative:
+                st.markdown(narrative)
+            else:
+                # Fallback: auto-generate a basic summary from page_roles
+                _role_groups: dict[str, list[str]] = {}
+                for pr in page_roles:
+                    role_raw = pr.get("role", "authority_builder")
+                    label = _ROLE_LABEL.get(role_raw, role_raw.replace("_", " ").title())
+                    url = pr.get("url", "")
+                    try:
+                        path = urlparse(url).path.strip("/")
+                        url_short = f"/{path}" if path else "/ (Homepage)"
+                    except Exception:
+                        url_short = url[:40]
+                    _role_groups.setdefault(label, []).append(url_short)
 
-            # Check if strategy might be stale
+                _parts = []
+                for role_label, urls in _role_groups.items():
+                    emoji = next((e for r, e in _ROLE_EMOJI.items() if _ROLE_LABEL.get(r) == role_label), "\U0001f3af")
+                    _parts.append(f"{emoji} **{len(urls)} {role_label}** pages")
+                st.markdown(" · ".join(_parts))
+
+            # Collapsible detailed page roles table
+            with st.expander("View detailed page roles", expanded=False):
+                for pr in page_roles:
+                    role_raw = pr.get("role", "")
+                    emoji = _ROLE_EMOJI.get(role_raw, "\U0001f3af")
+                    label = _ROLE_LABEL.get(role_raw, role_raw.replace("_", " ").title())
+                    url = pr.get("url", "")
+                    try:
+                        path = urlparse(url).path.strip("/")
+                        url_short = f"/{path}" if path else "/ (Homepage)"
+                    except Exception:
+                        url_short = url[:40]
+                    st.markdown(f"{emoji} **{label}** · `{url_short}`")
+
+            # Stale strategy check
             strategy_page_ids = {pr.get("page_id") for pr in page_roles}
             current_page_ids = data.get("page_ids", set())
             if current_page_ids - strategy_page_ids:
                 st.caption("Note: run new crawl + regenerate strategy to include new pages")
+
+            # Strategy date + regenerate link
+            _gen_at = project_ctx.get("domain_strategy_generated_at")
+            if _gen_at:
+                _gen_date = str(_gen_at)[:10]
+                st.caption(f"Strategy generated on {_gen_date}. Regenerate on the **Crawl** page.")
+            else:
+                st.caption("Regenerate on the **Crawl** page.")
         else:
-            st.caption("No domain strategy yet.")
-        _nav_button("Crawl", "Crawl", f"ov_goto_crawl_strategy_{project_id}")
+            st.caption("No domain strategy yet. Generate one on the **Crawl** page to get differentiated playbooks.")
+            _nav_button("Generate Strategy", "Crawl", f"ov_goto_crawl_strategy_{project_id}")
 
     st.divider()
 
@@ -254,6 +290,7 @@ def show_overview(
 
     # === Section 4: YOUR MATRIX ===
     st.subheader("Your Matrix")
+    st.caption("Your page matrix tracks optimisation progress across all crawled pages.")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Pages in Matrix", data["page_count"])
     m2.metric("With AI Scores", data["ai_score_count"])
@@ -267,8 +304,8 @@ def show_overview(
     if data["playbook_total"] > 0:
         st.markdown(
             f"""<div style="background: var(--surface2, #21252e); border-left: 3px solid var(--stone, #8B8B8B); padding: 1rem; border-radius: 4px; opacity: 0.6;">
-<strong>Coming soon: Track playbook implementation status</strong><br>
-You have {data['playbook_total']} active playbooks. Implementation tracking will let you confirm when changes are applied and measure their impact.
+<strong>\U0001f4cb Coming soon: Playbook Implementation Tracker</strong><br>
+You have {data['playbook_total']} active playbooks. This section will show which playbooks have been implemented by your team, track the dates changes were applied, and connect those changes to the outcome measurements below. When your team confirms a playbook has been applied, Aevilab starts monitoring for results.
 </div>""",
             unsafe_allow_html=True,
         )
@@ -277,8 +314,8 @@ You have {data['playbook_total']} active playbooks. Implementation tracking will
     # === Section 6: CHANGES DETECTED (placeholder) ===
     st.markdown(
         """<div style="background: var(--surface2, #21252e); border-left: 3px solid var(--stone, #8B8B8B); padding: 1rem; border-radius: 4px; opacity: 0.6;">
-<strong>Coming soon: Automatic change detection</strong><br>
-After re-crawling, Aevilab will detect content changes and help you track their impact on citations and traffic.
+<strong>\U0001f50d Coming soon: Intelligent Change Detection</strong><br>
+After your next crawl, Aevilab will automatically detect content changes on your pages \u2014 new headings, updated schema, modified content \u2014 and show you what changed and when. Combined with citation and traffic tracking, this creates a direct feedback loop: change \u2192 detect \u2192 measure \u2192 learn. This is how Aevilab gets smarter with every crawl.
 </div>""",
         unsafe_allow_html=True,
     )
