@@ -401,6 +401,7 @@ def _run_strategy_generation(project_ctx: dict, token: str) -> None:
     project_id = project_ctx["id"]
 
     st.session_state["operation_in_progress"] = True
+    _strategy_saved = False
     try:
         # Load all data needed for strategy
         pages = _load_page_overview(token, project_id)
@@ -434,14 +435,17 @@ def _run_strategy_generation(project_ctx: dict, token: str) -> None:
                 # Clear stale caches so overview + banner pick up new strategy
                 st.session_state.pop(f"_domain_strategy_{project_id}", None)
                 st.session_state.pop(f"_overview_data_{project_id}", None)
+                _strategy_saved = True
             else:
                 st.warning("Strategy generated but failed to save.")
         else:
             st.error("Strategy generation failed.")
+    except Exception as _strat_err:
+        st.error(f"Strategy generation error: {_strat_err}")
     finally:
         st.session_state["operation_in_progress"] = False
     # Rerun AFTER finally has released the lock
-    if strategy:
+    if _strategy_saved:
         st.rerun()
 
 
@@ -502,7 +506,7 @@ def _show_crawl_from_url():
         max_depth = st.number_input("Max depth", min_value=1, max_value=20, value=10,
                                     key="crawl_max_depth")
     with col3:
-        max_pages = st.number_input("Max pages", min_value=1, max_value=2000, value=20,
+        max_pages = st.number_input("Max pages", min_value=1, max_value=2000, value=200,
                                     key="crawl_max_pages")
 
     skip_dupes = st.checkbox("Skip duplicates", value=True, key="crawl_skip_dupes")
