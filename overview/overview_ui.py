@@ -150,7 +150,32 @@ def _nav_button(label: str, target: str, key: str) -> None:
 
 def _show_brand_audit_demo(project_id: str) -> None:
     """Static demo of the AI Brand Perception Audit feature."""
-    st.subheader("Brand Context Auditor")
+
+    # Inject scoped CSS for brand audit visual styling
+    st.markdown("""<style>
+/* Brand audit section styling */
+div[data-testid="stExpander"].brand-audit-strategy details {
+    border-left: 4px solid #a78bfa !important;
+}
+div[data-testid="stExpander"].brand-audit-inv1 details {
+    border-left: 4px solid #2dd4a0 !important;
+}
+div[data-testid="stExpander"].brand-audit-inv2 details {
+    border-left: 4px solid #5b9cf6 !important;
+}
+div[data-testid="stExpander"].brand-audit-inv3 details {
+    border-left: 4px solid #f0a500 !important;
+}
+div[data-testid="stExpander"].brand-audit-inv4 details {
+    border-left: 4px solid #f06070 !important;
+}
+</style>""", unsafe_allow_html=True)
+
+    st.markdown(
+        '<h3 style="margin-bottom: 0;">'
+        '<span style="color: var(--accent, #f0a500);">Brand Context</span> Auditor</h3>',
+        unsafe_allow_html=True,
+    )
     st.caption(
         "Opus strategises. Sonnet executes with web search. You see both layers."
     )
@@ -162,7 +187,7 @@ def _show_brand_audit_demo(project_id: str) -> None:
     )
     st.write("")
 
-    with st.expander("Strategy Layer (Opus-tier reasoning)", expanded=False):
+    with st.expander("\U0001f7e3 Strategy Layer (Opus-tier reasoning)", expanded=False):
         st.markdown("""**AI Brand Audit Investigation Plan: wagamama**
 
 ---
@@ -186,7 +211,7 @@ As wagamama has expanded and raised prices post-pandemic, sentiment around value
 
 **Priority angle:** Start with #3 \u2014 menu accuracy errors are the most operationally damaging misrepresentations and the easiest to verify against ground truth.""")
 
-    with st.expander("Investigation 1: Brand Overview & Customer Sentiment", expanded=False):
+    with st.expander("\U0001f7e2 Investigation 1: Brand Overview & Customer Sentiment", expanded=False):
         st.markdown("""**Brand Overview**
 
 Wagamama is a London-based restaurant chain specialising in Japanese ramen bars and offering a variety of Asian food. Their first restaurant opened in 1992 in Bloomsbury, founded by Alan Yau. The brand has gone global with franchised restaurants in 22 countries across Europe and the Middle East, plus 8 company-owned locations in the US.
@@ -212,8 +237,16 @@ Consumer reviews are notably mixed. On Trustpilot (wagamama.co.uk), the brand sc
 Some longer-term customers feel the brand "used to be good" but is now "overpriced."
 
 **Notable gap:** The brand's public-facing marketing emphasises wellness, nourishment, and inclusivity, but customer reviews frequently flag allergy handling, accessibility failures, and inconsistent food quality.""")
+        st.markdown(
+            '<div style="background: rgba(240, 96, 112, 0.15); border-left: 3px solid #f06070; '
+            'padding: 0.6rem 1rem; border-radius: 4px; margin-top: 0.5rem;">'
+            '<strong style="color: #f06070;">\u26a0 Sentiment Risk:</strong> '
+            'Trustpilot 2.3/5 from 328 reviews despite 100+ locations. '
+            'Marketing narrative diverges significantly from customer experience.</div>',
+            unsafe_allow_html=True,
+        )
 
-    with st.expander("Investigation 2: Cuisine Type & Food Offering", expanded=False):
+    with st.expander("\U0001f535 Investigation 2: Cuisine Type & Food Offering", expanded=False):
         st.markdown("""**What the brand serves:**
 
 Wagamama is a London-based restaurant chain that specialises in Japanese ramen bars and offers a variety of Asian food, selling dishes including bao buns, curries, donburi, teppanyaki grill noodles, ramen, and pho.
@@ -227,8 +260,15 @@ While Japanese cuisine forms the backbone of their menu, Wagamama incorporates f
 Wagamama positions itself as "a staple of modern Asian cuisine," with an Asian-inspired menu "created to soothe, nourish, sustain and inspire." The brand also aligns itself with the Japanese philosophy of *kaizen* (continuous improvement).
 
 **Notable gap/inaccuracy:** There is a consistent tension in how wagamama is classified \u2014 sources oscillate between calling it a "Japanese restaurant" and an "Asian-fusion" chain. Wagamama's own US site describes "popular Asian + Japanese dishes" and "Asian-fusion cuisine." This ambiguity could dilute the brand's perceived authenticity with purists of either Japanese or broader Asian cuisine.""")
+        st.markdown(
+            '<div style="background: rgba(91, 156, 246, 0.15); border-left: 3px solid #5b9cf6; '
+            'padding: 0.6rem 1rem; border-radius: 4px; margin-top: 0.5rem;">'
+            '<strong style="color: #5b9cf6;">\U0001f4a1 Identity Gap:</strong> '
+            'AI oscillates between "Japanese" and "Asian-fusion" \u2014 brand identity is ambiguous across platforms.</div>',
+            unsafe_allow_html=True,
+        )
 
-    with st.expander("Investigation 3: Competitive Framing", expanded=False):
+    with st.expander("\U0001f7e0 Investigation 3: Competitive Framing", expanded=False):
         st.markdown("""**How wagamama is categorised vs. Itsu & Pret**
 
 wagamama is broadly described as "the UK's leading pan-Asian casual restaurant chain" \u2014 placing it firmly in **casual dining**, not fast food. However, its competitive set is blurring. wagamama's top competitors are identified as Nando's, Itsu, and ASK Italian, grouping it with both fast-casual and full-service brands. Companies like Pret, wagamama, Itsu, and Yo Sushi are collectively cited as "championing food" in the same breath \u2014 suggesting consumer and trade perception increasingly bundles them together.
@@ -238,8 +278,15 @@ wagamama is broadly described as "the UK's leading pan-Asian casual restaurant c
 **Retail crossover is narrowing the gap:** Restaurant brands like Leon, Itsu, and wagamama are capitalising on retail by launching full meal solutions into grocery. wagamama's new products \u2014 pastes, sauces and meal kits \u2014 launched initially in Waitrose.
 
 **Notable gap/inaccuracy:** wagamama is occasionally labelled "fast food" in external sources (e.g., travel guides), which conflicts with its own positioning. The brand promotes fast service and a casual dining vibe \u2014 but the dine-in, communal bench format is meaningfully different from Pret or Itsu's grab-and-go model, a distinction not always reflected in how third parties categorise it.""")
+        st.markdown(
+            '<div style="background: rgba(240, 165, 0, 0.15); border-left: 3px solid #f0a500; '
+            'padding: 0.6rem 1rem; border-radius: 4px; margin-top: 0.5rem;">'
+            '<strong style="color: #f0a500;">\U0001f3af Positioning Risk:</strong> '
+            'AI occasionally categorises wagamama as "fast food" \u2014 conflating dine-in casual dining with grab-and-go.</div>',
+            unsafe_allow_html=True,
+        )
 
-    with st.expander("Investigation 4: Mid-Premium Positioning", expanded=False):
+    with st.expander("\U0001f534 Investigation 4: Mid-Premium Positioning", expanded=False):
         st.markdown("""**Verdict: AI is broadly reinforcing wagamama's mid-premium positioning \u2014 but with some notable nuances and risks.**
 
 **What AI & Search Results Say About the Brand**
@@ -257,18 +304,33 @@ Wagamama has launched a range of ready meals and sauces into multiple supermarke
 AI sources are largely silent on wagamama's **experiential and cultural storytelling** \u2014 the communal dining philosophy and Japanese-inspired design language that underpin its premium-over-fast-casual positioning. This matters because "AI can repeat outdated or incorrect information just as easily as positive mentions," and if negative framing or misinformation goes unnoticed, "it can quietly damage brand trust at scale."
 
 **Summary:** AI systems are currently reinforcing wagamama's mid-premium label through pricing language and NPS data, but the growing supermarket presence introduces narrative drift risk that warrants monitoring across AI platforms.""")
+        st.markdown(
+            '<div style="background: rgba(45, 212, 160, 0.15); border-left: 3px solid #2dd4a0; '
+            'padding: 0.6rem 1rem; border-radius: 4px; margin-top: 0.5rem;">'
+            '<strong style="color: #2dd4a0;">\u2705 Verdict:</strong> '
+            'Mid-premium positioning is <strong>currently reinforced</strong> by AI \u2014 but supermarket expansion creates narrative drift risk.</div>',
+            unsafe_allow_html=True,
+        )
 
-    # Cost metrics
+    # Cost metrics — styled container
     st.write("")
+    st.markdown(
+        '<div style="background: var(--surface2, #21252e); border: 1px solid var(--border, #2a2f3a); '
+        'border-radius: 6px; padding: 0.5rem 1rem 0.2rem;">'
+        '<p style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; '
+        'color: var(--text-muted, #7a8099); margin-bottom: 0.3rem;">Inference Economics</p></div>',
+        unsafe_allow_html=True,
+    )
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Strategy (Opus)", "4,988 tokens", help="Opus-tier reasoning layer")
-    c2.metric("Execution (Sonnet)", "143,055 tokens", help="Sonnet + web search queries")
-    c3.metric("Total Cost", "$0.50", help="Strategy $0.07 + Execution $0.43")
-    c4.metric("Strategy Share", "15%", help="Strategy is 15% of total cost")
+    c1.metric("Strategy (Opus)", "4,988 tokens", delta="$0.07", delta_color="off")
+    c2.metric("Execution (Sonnet)", "143,055 tokens", delta="$0.43", delta_color="off")
+    c3.metric("Total Cost", "$0.50")
+    c4.metric("Strategy Share", "15%")
 
-    st.caption(
-        "Coming to Aevilab Q2 2026. Multi-engine brand perception auditing \u2014 "
-        "enter your domain, get a full audit in under 2 minutes."
+    st.markdown(
+        '<p style="text-align: center; color: var(--text-muted, #7a8099); font-size: 13px; margin-top: 0.5rem;">'
+        'Coming to Aevilab Q2 2026 \u2014 enter your domain, get a full brand perception audit in under 2 minutes.</p>',
+        unsafe_allow_html=True,
     )
 
 
