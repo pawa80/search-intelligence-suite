@@ -150,73 +150,121 @@ def _nav_button(label: str, target: str, key: str) -> None:
 
 def _show_brand_audit_demo(project_id: str) -> None:
     """Static demo of the AI Brand Perception Audit feature."""
-    st.subheader("\U0001f50d AI Brand Perception Audit (Preview)")
+    st.subheader("Brand Context Auditor")
     st.caption(
-        "How AI engines see your brand \u2014 powered by multi-model analysis. "
-        "This feature is coming soon. Below is a sample audit for **Popeyes UK** "
-        "to demonstrate the capability."
+        "Opus strategises. Sonnet executes with web search. You see both layers."
     )
 
     st.markdown(
         '<span style="background: var(--accent, #f0a500); color: #000; padding: 2px 8px; '
-        'border-radius: 3px; font-size: 12px; font-weight: 600;">SAMPLE DATA \u2014 Popeyes UK</span>',
+        'border-radius: 3px; font-size: 12px; font-weight: 600;">SAMPLE AUDIT \u2014 wagamama</span>',
         unsafe_allow_html=True,
     )
     st.write("")
 
-    with st.expander("Strategy Layer (Opus reasoning)", expanded=False):
-        st.markdown("""**AI Brand Perception Audit: Popeyes UK**
+    with st.expander("Strategy Layer (Opus-tier reasoning)", expanded=False):
+        st.markdown("""**AI Brand Audit Investigation Plan: wagamama**
 
-**1. Direct UK Brand Recognition & Identity**
-The core question is whether AI systems distinguish Popeyes UK as a distinct entity from the US parent brand, or conflate the two.
+---
 
-**2. Competitive Positioning in the UK Fried Chicken Market**
-The UK QSR chicken market is fiercely contested (KFC, Chicken Cottage, Morley's, Slim Chickens). AI systems may not accurately reflect UK-specific positioning.
+**1. Core Brand Identity & Cuisine Perception**
+How do AI systems characterize wagamama's culinary identity \u2014 and do they accurately reflect the pan-Asian (primarily Japanese-inspired) positioning, or do they flatten it into a generic "Asian restaurant" category?
 
-**3. UK Location & Availability Accuracy**
-Popeyes UK has a relatively recent footprint. AI systems frequently get store counts, cities, and launch dates wrong for newer regional rollouts.
+**2. Competitive Positioning Against Fast-Casual Asian Rivals**
+Where do AI systems place wagamama in the competitive landscape \u2014 alongside premium chains like Yo! Sushi and Itsu, or fast-food adjacents like Pret? This reveals whether AI is reinforcing or undermining wagamama's mid-premium positioning.
 
-**4. Menu & Product Accuracy for the UK Market**
-UK menus differ from US menus. If AI describes the Popeyes Chicken Sandwich without noting UK-specific differences, that's a credibility gap.
+**3. Menu Accuracy & Signature Dish Recognition**
+Wagamama has a distinctive menu with long-standing signature dishes (katsu curry, ramen, gyoza). Do AI systems confidently and correctly describe these, or introduce errors that could mislead prospective diners?
 
-**5. Sentiment & Cultural Reception in the UK**
-The UK fried chicken culture has strong local loyalties. AI may default to US hype cycles without reflecting UK-specific reception.""")
+**4. Brand Authority & Sustainability Narrative**
+Wagamama has invested publicly in sustainability credentials (plant-based menu expansion, carbon reduction pledges). Does AI reflect this as part of the brand story, or is it absent \u2014 effectively erasing a key brand differentiator?
 
-    with st.expander("Investigation 1: UK Brand Recognition & Identity", expanded=False):
-        st.markdown("""**Business Performance:** Popeyes was the fastest-growing fast-food brand in the UK in the 12 months to January 2025. In 2024, opened 33 new locations, 100% increase in total sales surpassing \u00a3118 million. Made UK debut in Stratford November 2021.
+**5. Reputation Signals Around Price, Value & Experience**
+As wagamama has expanded and raised prices post-pandemic, sentiment around value-for-money has become contested. Does AI echo this tension or does it present an uncritically positive (or negative) brand picture?
 
-**Customer Sentiment Gap:** Despite strong metrics, ground-level reviews reveal disconnect. Reports of undercooked chicken, hygiene concerns, weak customer service follow-through.
+---
 
-**Notable Gap:** Clear divergence between trade press narrative (rapid expansion, record sales) and consumer review platforms. Trustpilot has only ~28 reviews despite 100+ locations \u2014 a reputational blind spot.""")
+**Priority angle:** Start with #3 \u2014 menu accuracy errors are the most operationally damaging misrepresentations and the easiest to verify against ground truth.""")
 
-    with st.expander("Investigation 2: UK vs US Brand Differentiation", expanded=False):
-        st.markdown("""**Key Differences:** UK uses 100% fresh British chicken (not marketed this way in US). TDR Capital invested \u00a350M making it separately backed. All UK chicken from halal-certified suppliers. Pricing \u00a31-2 more than competitors.
+    with st.expander("Investigation 1: Brand Overview & Customer Sentiment", expanded=False):
+        st.markdown("""**Brand Overview**
 
-**Notable Gap:** popeyesuk.com returns no indexable content \u2014 brand messaging invisible to search crawlers. Significant SEO gap.""")
+Wagamama is a London-based restaurant chain specialising in Japanese ramen bars and offering a variety of Asian food. Their first restaurant opened in 1992 in Bloomsbury, founded by Alan Yau. The brand has gone global with franchised restaurants in 22 countries across Europe and the Middle East, plus 8 company-owned locations in the US.
 
-    with st.expander("Investigation 3: Competitive Positioning", expanded=False):
-        st.markdown("""AI systems trained on US content would frame competitors as Chick-fil-A, Raising Cane's, Bojangles. **UK reality:** KFC (dominant), Wingstop, Slim Chickens, Dave's Hot Chicken.
+---
 
-Chick-fil-A is only just entering UK (five restaurants by end of 2026) \u2014 minor competitor, not established rival as AI assumes.
+**Brand Positioning & Marketing**
 
-**Stale content risk:** At least one indexed source still claims Popeyes "is yet to come to Britain" \u2014 a 2020 page AI may still surface.""")
+In June 2025, Wagamama launched its "biggest campaign" in its 33-year history \u2014 a new brand platform called 'Food is Life', built around the belief that food plays a vital role in connection, comfort, creativity, and culture. The casual dining chain is also working towards a 200-site UK target, supported by brand strength, pricing power, and digital engagement.
 
-    with st.expander("Investigation 4: KFC Comparison", expanded=False):
-        st.markdown("""KFC dominates UK with \u00a3284M turnover (2022). Consumer reviewers give Popeyes edge on flavour. Popeyes \u00a31-2 more expensive but delivers chunkier chicken and bolder flavours.
+---
 
-**Loyalty blind spot:** Popeyes UK views loyalty as growth engine but kiosk data represents an "invisible majority" of in-store customers.""")
+**Retail Expansion**
 
-    with st.expander("Investigation 5: Location Accuracy", expanded=False):
-        st.markdown("""No longer "limited footprint" \u2014 reached 100 UK restaurants November 2025. CEO planning 45 further openings. Scotland has 10 locations.
+Wagamama is capitalising on the foodservice-to-retail shift by launching full meal solutions into grocery, expanding its reach and revenue streams. However, by going into retail, the brand exposes itself to fresh challenges \u2014 including competing with established FMCG brands and conceding some control over its image.
 
-**Coverage gaps remain:** heavily weighted toward London and urban centres. Format inconsistency: dine-in, drive-thru, delivery kitchens, station grab-and-go.""")
+---
+
+**Customer Sentiment (Key Gaps & Issues)**
+
+Consumer reviews are notably mixed. On Trustpilot (wagamama.co.uk), the brand scores just **2.3 out of 5** from 328 reviews. Recurring complaints include pricing, portion sizes, and inconsistent quality. A significant critique centres on vegan options being "significantly decreased," which is seen as a broken promise given Wagamama's earlier 50% vegan pledge.
+
+Some longer-term customers feel the brand "used to be good" but is now "overpriced."
+
+**Notable gap:** The brand's public-facing marketing emphasises wellness, nourishment, and inclusivity, but customer reviews frequently flag allergy handling, accessibility failures, and inconsistent food quality.""")
+
+    with st.expander("Investigation 2: Cuisine Type & Food Offering", expanded=False):
+        st.markdown("""**What the brand serves:**
+
+Wagamama is a London-based restaurant chain that specialises in Japanese ramen bars and offers a variety of Asian food, selling dishes including bao buns, curries, donburi, teppanyaki grill noodles, ramen, and pho.
+
+**Cuisine identity:**
+
+While Japanese cuisine forms the backbone of their menu, Wagamama incorporates flavours from other Asian regions, making their dishes diverse. The menu also includes pad thai \u2014 a Thai-inspired addition \u2014 alongside more traditional Japanese items.
+
+**Brand positioning:**
+
+Wagamama positions itself as "a staple of modern Asian cuisine," with an Asian-inspired menu "created to soothe, nourish, sustain and inspire." The brand also aligns itself with the Japanese philosophy of *kaizen* (continuous improvement).
+
+**Notable gap/inaccuracy:** There is a consistent tension in how wagamama is classified \u2014 sources oscillate between calling it a "Japanese restaurant" and an "Asian-fusion" chain. Wagamama's own US site describes "popular Asian + Japanese dishes" and "Asian-fusion cuisine." This ambiguity could dilute the brand's perceived authenticity with purists of either Japanese or broader Asian cuisine.""")
+
+    with st.expander("Investigation 3: Competitive Framing", expanded=False):
+        st.markdown("""**How wagamama is categorised vs. Itsu & Pret**
+
+wagamama is broadly described as "the UK's leading pan-Asian casual restaurant chain" \u2014 placing it firmly in **casual dining**, not fast food. However, its competitive set is blurring. wagamama's top competitors are identified as Nando's, Itsu, and ASK Italian, grouping it with both fast-casual and full-service brands. Companies like Pret, wagamama, Itsu, and Yo Sushi are collectively cited as "championing food" in the same breath \u2014 suggesting consumer and trade perception increasingly bundles them together.
+
+**The Itsu distinction is sharp:** Itsu focuses on grab-and-go food \u2014 you pick up your meal and eat on the move \u2014 making it ideal for busy people who want lighter meals and quick options. wagamama, by contrast, positions itself as "a warm, welcoming, inclusive place to eat \u2014 both casual and cosy."
+
+**Retail crossover is narrowing the gap:** Restaurant brands like Leon, Itsu, and wagamama are capitalising on retail by launching full meal solutions into grocery. wagamama's new products \u2014 pastes, sauces and meal kits \u2014 launched initially in Waitrose.
+
+**Notable gap/inaccuracy:** wagamama is occasionally labelled "fast food" in external sources (e.g., travel guides), which conflicts with its own positioning. The brand promotes fast service and a casual dining vibe \u2014 but the dine-in, communal bench format is meaningfully different from Pret or Itsu's grab-and-go model, a distinction not always reflected in how third parties categorise it.""")
+
+    with st.expander("Investigation 4: Mid-Premium Positioning", expanded=False):
+        st.markdown("""**Verdict: AI is broadly reinforcing wagamama's mid-premium positioning \u2014 but with some notable nuances and risks.**
+
+**What AI & Search Results Say About the Brand**
+
+Wagamama is described as "the only UK pan-Asian brand concept of scale and one of the UK's market-leading premium casual dining brands" \u2014 language consistent with a mid-premium identity. Customer NPS scores of +42 (December 2024) rank it among the UK's top two casual dining brands by BrandVue.
+
+AI-generated product analysis sites consistently place wagamama in the mid-premium band. Core menu items are described as "positioned in the mid-price band for mains," often featured in loyalty promotions via the "Soul Club" rewards scheme. The brand is characterised by "contemporary design, youthful appeal, and fusion of healthy and indulgent dining options," with franchise investment requirements "reflecting its international brand strength and polished casual positioning."
+
+**A Key Positioning Risk: Supermarket Expansion**
+
+Wagamama has launched a range of ready meals and sauces into multiple supermarkets \u2014 a move that could dilute its mid-premium restaurant identity in AI narratives. Industry analysts note that restaurant brands can "hold their own and often compete fiercely, even at a premium price point," but caution the retail sector is not easy to crack.
+
+**Notable Gaps in AI Perception**
+
+AI sources are largely silent on wagamama's **experiential and cultural storytelling** \u2014 the communal dining philosophy and Japanese-inspired design language that underpin its premium-over-fast-casual positioning. This matters because "AI can repeat outdated or incorrect information just as easily as positive mentions," and if negative framing or misinformation goes unnoticed, "it can quietly damage brand trust at scale."
+
+**Summary:** AI systems are currently reinforcing wagamama's mid-premium label through pricing language and NPS data, but the growing supermarket presence introduces narrative drift risk that warrants monitoring across AI platforms.""")
 
     # Cost metrics
     st.write("")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Strategy Cost", "$0.08", help="Opus reasoning layer")
-    c2.metric("Execution Cost", "$0.51", help="Sonnet + search queries")
-    c3.metric("Total Per Audit", "$0.59")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Strategy (Opus)", "4,988 tokens", help="Opus-tier reasoning layer")
+    c2.metric("Execution (Sonnet)", "143,055 tokens", help="Sonnet + web search queries")
+    c3.metric("Total Cost", "$0.50", help="Strategy $0.07 + Execution $0.43")
+    c4.metric("Strategy Share", "15%", help="Strategy is 15% of total cost")
 
     st.caption(
         "Coming to Aevilab Q2 2026. Multi-engine brand perception auditing \u2014 "
