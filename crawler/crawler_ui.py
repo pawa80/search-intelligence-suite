@@ -151,9 +151,9 @@ def _load_page_overview(token: str, project_id: str) -> list[dict]:
     from app import db_request
     try:
         return db_request("GET", "pages", token,
-                          params={"select": "id,url,title,status_code,page_type,intent,h1,meta_description,canonical_url,in_sitemap,depth,last_crawled_at,page_elements",
+                          params={"select": "id,url,title,status_code,status,page_type,intent,h1,meta_description,canonical_url,in_sitemap,depth,last_crawled_at,page_elements",
                                   "project_id": f"eq.{project_id}",
-                                  "status": "eq.active",
+                                  "status": "neq.archived",
                                   "last_crawled_at": "not.is.null",
                                   "order": "url.asc"})
     except Exception:
@@ -237,10 +237,20 @@ def _show_page_overview(project_ctx: dict) -> None:
             crawl_time = pe.get("crawl_time_seconds")
             time_display = f"{crawl_time:.1f}" if crawl_time is not None else "\u2014"
 
+            # Status badge
+            _status = p.get("status") or "active"
+            _code = p.get("status_code")
+            if _status == "dead":
+                _status_badge = f"\U0001f534 {_code or 404}"
+            elif _status == "redirected":
+                _status_badge = f"\u21a9\ufe0f {_code or 301}"
+            else:
+                _status_badge = f"\u2705 {_code or 200}"
+
             table_rows.append({
                 "URL": url[:60] + ("..." if len(url) > 60 else ""),
                 "Title": (p.get("title") or "\u2014")[:50],
-                "Status": p.get("status_code", "\u2014"),
+                "Status": _status_badge,
                 "Depth": p.get("depth") if p.get("depth") is not None else "\u2014",
                 "Referrer": referrer[:40] if referrer != "\u2014" else "\u2014",
                 "Time (s)": time_display,
@@ -412,10 +422,11 @@ def _run_strategy_generation(project_ctx: dict, token: str) -> None:
     st.session_state["operation_in_progress"] = True
     _strategy_saved = False
     try:
-        # Load all data needed for strategy
-        pages = _load_page_overview(token, project_id)
+        # Load all data needed for strategy — active pages only
+        _all_pages = _load_page_overview(token, project_id)
+        pages = [p for p in _all_pages if (p.get("status") or "active") == "active"]
         if not pages:
-            st.warning("No crawled pages. Run a crawl first.")
+            st.warning("No active crawled pages. Run a crawl first.")
             return
 
         # Load AI analyses
