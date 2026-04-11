@@ -66,11 +66,19 @@ def _save_crawl_results(results: list[CrawlResult]) -> tuple[int, int]:
 
     for r in results:
         try:
+            # Set status based on HTTP response
+            _page_status = "active"
+            if r.status_code == 404:
+                _page_status = "dead"
+            elif r.status_code and r.status_code in (301, 302, 307, 308):
+                _page_status = "redirected"
+
             db_upsert("pages", token, {
                 "project_id": project_id,
                 "url": r.url,
                 "canonical_url": r.seo.canonical or None,
                 "status_code": r.status_code,
+                "status": _page_status,
                 "title": r.title or None,
                 "h1": r.seo.h1 if r.seo.h1 != "Missing" else None,
                 "meta_description": r.seo.meta_desc or None,
