@@ -1136,34 +1136,6 @@ def show_dashboard():
             st.session_state.selected_project_id = new_project_id
             st.session_state["domain_context"] = selected_project.get("domain_context") or ""
 
-        if projects and st.session_state.selected_project_id:
-            _pid = st.session_state.selected_project_id
-            with st.expander("Project Settings"):
-                _dc_val = st.session_state.get("domain_context", "")
-                _new_dc = st.text_area(
-                    "Domain context",
-                    value=_dc_val,
-                    height=120,
-                    help="Describe the brand, target audience, tone and positioning. This context is used in all playbooks for this project.",
-                    key=f"domain_context_input_{_pid}",
-                )
-                if st.button("Save", key=f"btn_save_domain_context_{_pid}"):
-                    try:
-                        db_request("PATCH", "projects", token,
-                                   params={"id": f"eq.{st.session_state.selected_project_id}"},
-                                   body={"domain_context": _new_dc if _new_dc else None})
-                        st.session_state["domain_context"] = _new_dc
-                        st.success("Domain context saved.")
-                        try:
-                            from tracking.usage_tracker import log_usage_event
-                            log_usage_event("domain_context_set",
-                                            event_detail=f"{len(_new_dc)} chars",
-                                            project_id=st.session_state.selected_project_id)
-                        except Exception:
-                            pass
-                    except Exception as e:
-                        st.error(f"Failed to save: {e}")
-
         with st.expander("Create New Project"):
             with st.form("create_project_form"):
                 p_name = st.text_input("Project name", key="new_project_name")
@@ -1254,7 +1226,36 @@ def show_dashboard():
 
     if st.session_state.get("active_tool") == "Settings":
         st.header("Settings")
-        st.info("Settings page coming soon.")
+        _s_pid = st.session_state.get("selected_project_id")
+        if _s_pid:
+            st.subheader("Domain Strategy Manifest")
+            st.caption("Describe your brand, target audience, tone and positioning. This context is injected into every playbook and shapes how AI recommendations are tailored to your domain.")
+            _dc_val = st.session_state.get("domain_context", "")
+            _new_dc = st.text_area(
+                "Domain context",
+                value=_dc_val,
+                height=200,
+                key=f"settings_domain_context_{_s_pid}",
+            )
+            if st.button("Save Domain Context", key=f"btn_save_dc_settings_{_s_pid}"):
+                try:
+                    db_request("PATCH", "projects", token,
+                               params={"id": f"eq.{_s_pid}"},
+                               body={"domain_context": _new_dc if _new_dc else None})
+                    st.session_state["domain_context"] = _new_dc
+                    st.session_state.pop(f"_overview_data_{_s_pid}", None)
+                    st.success("Domain context saved.")
+                    try:
+                        from tracking.usage_tracker import log_usage_event
+                        log_usage_event("domain_context_set",
+                                        event_detail=f"{len(_new_dc)} chars",
+                                        project_id=_s_pid)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    st.error(f"Failed to save: {e}")
+        else:
+            st.info("Select a project first.")
         return
 
     # --- Rank Tracker main area ---

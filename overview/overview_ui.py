@@ -198,10 +198,7 @@ def show_overview(
                 st.markdown(domain_context)
         else:
             st.caption("Add your domain context in Project Settings to improve playbook quality.")
-        # Navigate to Project Settings sidebar expander
-        if st.button("Edit Your Strategy Manifest", key=f"ov_edit_strategy_{project_id}"):
-            st.session_state["_tool_override"] = "Project Overview"
-            st.info("Edit your domain context in the **Project Settings** expander in the sidebar.")
+        _nav_button("Edit Your Strategy Manifest", "Settings", f"ov_edit_strategy_{project_id}")
 
     # Right: AI Derived Domain Strategy
     with col_ai:
