@@ -111,11 +111,13 @@ Pal + Morten collaboration.
 - **Session 2 (Apr 9)**: #9a Sonnet prompt — 8 research-backed AEO rules (declarative H2s, no FAQ on product pages, front-loading, schema completeness, Org/Person schema, AI crawler audit, entity checklist, platform tags). #9b intent helper backend — content preview (D), content-based intent suggestions with H2s/content (A), local relevance scoring (B). Live fetch fallback when page_elements empty.
 - **Session 3 (Apr 9-10)**: Strategy banner in AI Workspace (colour-coded roles + priority queries + do-not-recommend). Strategy overwrite protection (validates before save, backs up to domain_strategy_previous). Domain strategy all-page coverage fix. page_elements double-encoding fix. GSC/GA contextual status messages. Intent JSON save format. Playbook download filename with domain+path slug.
 - **v5.0 Project Overview (Apr 10)**: New default landing page. 7-item nav (Project Overview first). 6 sections: domain strategy (user input + AI narrative), citation rate, crawl summary, matrix stats, coming soon placeholders. Strategy narrative field added to domain_strategy JSONB. v5.0.1: UX polish (labels, narrative display, homepage URL clarity, richer placeholders, matrix context).
+- **v5.1 Session (Apr 10-11)**: Crawler max_pages 20→200 (root cause of incomplete strategies). Strategy timeout fix: tag/category auto-assignment + 180s timeout. Strategy overwrite protection (validates + backs up to domain_strategy_previous). 404→dead status + status badges in crawl overview (✅/🔴/↩️). content_text extraction (first 500 words) in page_elements. Domain context editor moved to Settings page. Brand Context Auditor demo (wagamama sample audit with colour-coded investigations). HTTP 529 handling across all Anthropic calls.
 
 ## Next Up
-- **v5.0 testing**: Verify Project Overview renders correctly. Regenerate domain strategy to get `strategy_narrative` field populated. Test nav buttons navigate to correct tools.
 - **Migration 013**: Run `migrations/013_domain_strategy_previous.sql` in Supabase SQL editor for strategy backup column.
-- **Session 3**: #27 language fix + #26 toggle kill fix + #28/#15 project settings viewable/editable + #33 matrix headers + #34 download button investigation + R:A authority guide
+- **Re-crawl projects**: With max_pages=200 default, re-crawl to populate content_text and get full page coverage for domain strategies.
+- **Regenerate strategies**: After re-crawl, regenerate to get strategy_narrative + full page coverage.
+- **Session 4 backlog**: #27 language fix + #33 matrix headers + #34 download button + R:A authority guide
 - **Morten test**: GSC + GA4 import with real data (Morten's Gmail needs adding as Google OAuth test user in Google Cloud Console)
 - **AEO Guide research**: Pal commissioning AEO research to improve `aeo/intelligence/aeo_guide.md`. Potential gaps: multi-modal content signals, freshness/recency weighting, updated stats.
 - **Superadmin AEO Guide editor** (parked): Superadmin role on workspace_members, admin panel to edit AEO guide in-app, store guide in Supabase instead of flat file.
@@ -132,6 +134,10 @@ Pal + Morten collaboration.
 - **AI Workspace depends on ANTHROPIC_API_KEY** (Claude Sonnet 4) + **OPENAI_API_KEY** (content analysis + gpt-4.1-mini playbook) — both in Streamlit Cloud secrets ✓
 - **Playbook v4.1** (Apr 9): Sonnet prompt now includes 8 AEO research-backed rules. Reasonable tier = structural audit (gpt-4.1-mini ~$0.02), Premium tier = full rewrite (Sonnet ~$0.11). Safety tags: `v4.1-sonnet-prompt-research-upgrade`, `v4.2-intent-helper-backend`.
 - **AI Workspace intent flow** (Apr 9): Content preview (H1/H2/meta from crawl or live fetch), Haiku intent suggestions enriched with H2s + content summary, local relevance scoring (Keyword Overlap /40, H2 Coverage /35, Specificity /25). Zero-cost scorer replaces standalone's GPT API call.
+- **Crawler** (Apr 11): Default max_pages bumped 20→200. Extracts content_text (first 500 words of body). Sets status from HTTP code (404→dead, 3xx→redirected). Status badges in overview (✅/🔴/↩️). Tag/category pages auto-assigned authority_builder in strategy generation.
+- **Domain Strategy** (Apr 10-11): Overwrite protection (validates page_roles before save, backs up to domain_strategy_previous). All-page coverage enforced. Strategy narrative field. Tag/category filtering reduces timeouts. Timeout 120→180s.
+- **Brand Context Auditor** (Apr 11): Static demo on Project Overview — wagamama sample audit. Colour-coded investigations (purple strategy, green/blue/orange/red investigations). Styled callout boxes for gaps/verdicts. Inference Economics metrics. Preview of upcoming multi-engine brand perception feature.
+- **Settings page** (Apr 11): Domain context editor moved from sidebar expander to Settings nav item. Overview "Edit Your Strategy Manifest" navigates to Settings.
 - **AEO Guide**: Lives at `aeo/intelligence/aeo_guide.md` (321 lines). Synced from Notion via `sync_aeo_guide.py`. Injected into Sonnet prompt in `recommender.py`. Future: store in Supabase, editable by superadmins in-app.
 - **`aeo/` had embedded .git** from standalone repo — removed before commit. Standalone-only files (app.py, README, .streamlit, etc.) left unstaged intentionally.
 - **sys.path poisoning risk**: `aeo/app.py` still exists on disk (unstaged). If anyone adds `aeo/` to sys.path without the temporary add/remove pattern, `from app import` breaks globally. Long-term fix: rename or delete `aeo/app.py` (the standalone entry point) since the suite uses `aeo/aeo_ui.py` instead.
@@ -374,7 +380,38 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Apr 10 2026
+Last session: Apr 11 2026
+
+### Apr 11 2026 — v5.1 Crawler fixes + Brand Audit demo + Settings
+
+**Crawler fixes:**
+- CRITICAL: `max_pages` default 20→200 (root cause of incomplete domain strategies — only 4% of sites were being persisted).
+- `content_text` extraction: first 500 words of visible body text saved in `page_elements` JSONB. Both BFS crawl and URL list check modes.
+- HTTP status → page status: 404→dead, 301/302/307/308→redirected, else active.
+- Crawl overview shows ALL pages (except archived) with status badges: ✅ 200, 🔴 404, ↩️ 3xx.
+- Strategy generator filters to active-only pages inline (not at query level).
+
+**Domain strategy hardening:**
+- Strategy generation timeout fix: tag/category pages (`/tag/`, `/category/`) auto-assigned `authority_builder` without Sonnet call. Timeout 120→180s.
+- HTTP 529 handling across all 3 Anthropic call sites (strategy, playbook, intent). `st.warning` not `st.error`.
+- UI lock: `st.rerun()` moved after `finally` block. `_strategy_saved` flag prevents NameError. Explicit `except` surfaces errors.
+- Stale cache clearing on strategy save (`_domain_strategy_`, `_overview_data_`).
+
+**Project Overview v5.0.1:**
+- Domain context editor moved from sidebar to Settings page. Overview button navigates to Settings.
+- Tab CSS: gap 0→8px + padding, fixes "Web CrawlSitemap Check" run-together labels.
+
+**Brand Context Auditor demo:**
+- Static wagamama audit on Project Overview. 5 expandable sections (strategy + 4 investigations).
+- Colour-coded: 🟣 strategy, 🟢/🔵/🟠/🔴 investigations. Styled callout boxes for gaps (red), identity (blue), positioning (amber), verdict (green).
+- Inference Economics: 4,988 strategy tokens + 143,055 execution tokens = $0.50 per audit.
+- "Coming to Aevilab Q2 2026" tagline.
+
+**Content-based fallback update:**
+- Live-fetch fallback now triggers on missing `content_text` (not just missing H2s).
+- After re-crawl with v5.1, `content_text` is populated and live-fetch is no longer needed.
+
+**Safety tags:** `v5.0-project-overview`, `v5.0.1-overview-ux-polish`, `v5.1-working-before-brand-audit-embed`, `v5.1-brand-audit-embed`, `v4.3-session2-complete`, `v4.4-gsc-ga-connection-fix`.
 
 ### Apr 10 2026 — v5.0 Project Overview + Session 3 bugfixes
 
