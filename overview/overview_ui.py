@@ -148,6 +148,82 @@ def _nav_button(label: str, target: str, key: str) -> None:
         st.rerun()
 
 
+def _show_brand_audit_demo(project_id: str) -> None:
+    """Static demo of the AI Brand Perception Audit feature."""
+    st.subheader("\U0001f50d AI Brand Perception Audit (Preview)")
+    st.caption(
+        "How AI engines see your brand \u2014 powered by multi-model analysis. "
+        "This feature is coming soon. Below is a sample audit for **Popeyes UK** "
+        "to demonstrate the capability."
+    )
+
+    st.markdown(
+        '<span style="background: var(--accent, #f0a500); color: #000; padding: 2px 8px; '
+        'border-radius: 3px; font-size: 12px; font-weight: 600;">SAMPLE DATA \u2014 Popeyes UK</span>',
+        unsafe_allow_html=True,
+    )
+    st.write("")
+
+    with st.expander("Strategy Layer (Opus reasoning)", expanded=False):
+        st.markdown("""**AI Brand Perception Audit: Popeyes UK**
+
+**1. Direct UK Brand Recognition & Identity**
+The core question is whether AI systems distinguish Popeyes UK as a distinct entity from the US parent brand, or conflate the two.
+
+**2. Competitive Positioning in the UK Fried Chicken Market**
+The UK QSR chicken market is fiercely contested (KFC, Chicken Cottage, Morley's, Slim Chickens). AI systems may not accurately reflect UK-specific positioning.
+
+**3. UK Location & Availability Accuracy**
+Popeyes UK has a relatively recent footprint. AI systems frequently get store counts, cities, and launch dates wrong for newer regional rollouts.
+
+**4. Menu & Product Accuracy for the UK Market**
+UK menus differ from US menus. If AI describes the Popeyes Chicken Sandwich without noting UK-specific differences, that's a credibility gap.
+
+**5. Sentiment & Cultural Reception in the UK**
+The UK fried chicken culture has strong local loyalties. AI may default to US hype cycles without reflecting UK-specific reception.""")
+
+    with st.expander("Investigation 1: UK Brand Recognition & Identity", expanded=False):
+        st.markdown("""**Business Performance:** Popeyes was the fastest-growing fast-food brand in the UK in the 12 months to January 2025. In 2024, opened 33 new locations, 100% increase in total sales surpassing \u00a3118 million. Made UK debut in Stratford November 2021.
+
+**Customer Sentiment Gap:** Despite strong metrics, ground-level reviews reveal disconnect. Reports of undercooked chicken, hygiene concerns, weak customer service follow-through.
+
+**Notable Gap:** Clear divergence between trade press narrative (rapid expansion, record sales) and consumer review platforms. Trustpilot has only ~28 reviews despite 100+ locations \u2014 a reputational blind spot.""")
+
+    with st.expander("Investigation 2: UK vs US Brand Differentiation", expanded=False):
+        st.markdown("""**Key Differences:** UK uses 100% fresh British chicken (not marketed this way in US). TDR Capital invested \u00a350M making it separately backed. All UK chicken from halal-certified suppliers. Pricing \u00a31-2 more than competitors.
+
+**Notable Gap:** popeyesuk.com returns no indexable content \u2014 brand messaging invisible to search crawlers. Significant SEO gap.""")
+
+    with st.expander("Investigation 3: Competitive Positioning", expanded=False):
+        st.markdown("""AI systems trained on US content would frame competitors as Chick-fil-A, Raising Cane's, Bojangles. **UK reality:** KFC (dominant), Wingstop, Slim Chickens, Dave's Hot Chicken.
+
+Chick-fil-A is only just entering UK (five restaurants by end of 2026) \u2014 minor competitor, not established rival as AI assumes.
+
+**Stale content risk:** At least one indexed source still claims Popeyes "is yet to come to Britain" \u2014 a 2020 page AI may still surface.""")
+
+    with st.expander("Investigation 4: KFC Comparison", expanded=False):
+        st.markdown("""KFC dominates UK with \u00a3284M turnover (2022). Consumer reviewers give Popeyes edge on flavour. Popeyes \u00a31-2 more expensive but delivers chunkier chicken and bolder flavours.
+
+**Loyalty blind spot:** Popeyes UK views loyalty as growth engine but kiosk data represents an "invisible majority" of in-store customers.""")
+
+    with st.expander("Investigation 5: Location Accuracy", expanded=False):
+        st.markdown("""No longer "limited footprint" \u2014 reached 100 UK restaurants November 2025. CEO planning 45 further openings. Scotland has 10 locations.
+
+**Coverage gaps remain:** heavily weighted toward London and urban centres. Format inconsistency: dine-in, drive-thru, delivery kitchens, station grab-and-go.""")
+
+    # Cost metrics
+    st.write("")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Strategy Cost", "$0.08", help="Opus reasoning layer")
+    c2.metric("Execution Cost", "$0.51", help="Sonnet + search queries")
+    c3.metric("Total Per Audit", "$0.59")
+
+    st.caption(
+        "Coming to Aevilab Q2 2026. Multi-engine brand perception auditing \u2014 "
+        "enter your domain, get a full audit in under 2 minutes."
+    )
+
+
 def show_overview(
     project_ctx: dict[str, Any] | None,
     token: str,
@@ -294,6 +370,11 @@ def show_overview(
     m3.metric("With GSC Data", data["gsc_count"])
     m4.metric("With Playbook", data["playbook_count"])
     _nav_button("Your Matrix", "Matrix", f"ov_goto_matrix_{project_id}")
+
+    st.divider()
+
+    # === BRAND PERCEPTION AUDIT (demo) ===
+    _show_brand_audit_demo(project_id)
 
     st.divider()
 
