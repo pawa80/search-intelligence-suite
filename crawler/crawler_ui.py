@@ -48,6 +48,7 @@ def _build_page_elements(r: CrawlResult) -> dict:
         "hero_image_alt": r.seo.hero_alt if r.seo.hero_alt not in ("Missing", "") else None,
         "referrer": r.referrer or None,
         "crawl_time_seconds": round(r.response_time, 2) if r.response_time else None,
+        "content_text": r.content_text[:3000] if r.content_text else None,
     }
 
 

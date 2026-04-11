@@ -461,14 +461,13 @@ def show_aeo_agent(
     _page_title = selected_page.get("title") or selected_page.get("url", "")
     _page_h1 = selected_page.get("h1") or ""
     _page_word_count = selected_page.get("word_count") or 0
-    _first_500 = ""  # populated by live fetch fallback if needed
+    _first_500 = _pe.get("content_text") or ""  # from crawler v5.0.2+
     _live_headings = []  # heading dicts from live fetch
 
-    # Fallback: if page_elements has no H2 structure, fetch the page live and cache.
-    # meta_description and h1 are direct columns on pages (always populated by crawl),
-    # but H2s/content only exist in page_elements JSONB (added in v3.6). Pages crawled
-    # before v3.6 have h1/meta but empty page_elements — we need the live fetch for those.
-    _has_rich_content = bool(_h2_structure)
+    # Fallback: if page_elements has no content_text, fetch the page live and cache.
+    # content_text is the primary signal — H2s and meta may exist from older crawls
+    # but without content_text the intent suggestions and preview lack depth.
+    _has_rich_content = bool(_first_500)
     _live_cache_key = f"aeo_live_analysis_{_page_key}"
     if not _has_rich_content and selected_page.get("url"):
         if _live_cache_key not in st.session_state:

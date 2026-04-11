@@ -43,6 +43,7 @@ class CrawlResult:
     error: str = ""
     in_sitemap: str = "N/A"
     seo: SEOData = field(default_factory=SEOData)
+    content_text: str = ""
     links_found: list[str] = field(default_factory=list)
 
 
@@ -103,6 +104,22 @@ def extract_seo_data(soup: BeautifulSoup) -> SEOData:
         seo.jsonld = " ".join(raw.split())[:500]
 
     return seo
+
+
+def extract_content_text(soup: BeautifulSoup, max_words: int = 500) -> str:
+    """Extract first N words of visible body text, stripping nav/footer/script."""
+    import copy
+    import re
+    # Clone to avoid mutating the soup used for SEO extraction + link discovery
+    clone = copy.copy(soup)
+    body = clone.find("main") or clone.find("article") or clone.find(attrs={"role": "main"}) or clone.body or clone
+    for tag_name in ["script", "style", "nav", "footer", "header", "aside", "noscript", "iframe", "svg"]:
+        for el in body.find_all(tag_name):
+            el.decompose()
+    text = body.get_text(separator=" ", strip=True)
+    text = re.sub(r"\s+", " ", text)
+    words = text.split()
+    return " ".join(words[:max_words])
 
 
 def normalise_url(url: str, scheme: str = "https", domain: str = "") -> str:
@@ -223,8 +240,9 @@ class CrawlerEngine:
                 title_tag = soup.find("title")
                 result.title = title_tag.get_text(strip=True) if title_tag else "No Title"
 
-                # Extract SEO data
+                # Extract SEO data + content text
                 result.seo = extract_seo_data(soup)
+                result.content_text = extract_content_text(soup)
 
                 # Extract internal links
                 for a in soup.find_all("a", href=True):
@@ -292,6 +310,7 @@ def check_url_list(urls: list[str]):
                 title_tag = soup.find("title")
                 result.title = title_tag.get_text(strip=True) if title_tag else "No Title"
                 result.seo = extract_seo_data(soup)
+                result.content_text = extract_content_text(soup)
         except httpx.TimeoutException:
             result.error = "Timeout"
         except httpx.ConnectError:
