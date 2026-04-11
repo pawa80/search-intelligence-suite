@@ -127,15 +127,41 @@ Pages ({page_count} total):
 Based on ALL of these pages together, assign each page a strategic role, identify cannibalisation, identify content gaps, and define the strategic rules that should govern all playbook generation for this domain."""
 
 
+_AUTO_AUTHORITY_PATTERNS = ["/tag/", "/category/", "/tags/", "/categories/"]
+
+
+def _is_auto_authority(url: str) -> bool:
+    """Check if a URL is a tag/category page that gets authority_builder by default."""
+    path = url.lower()
+    return any(p in path for p in _AUTO_AUTHORITY_PATTERNS)
+
+
 def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, playbook_counts: dict) -> dict | None:
     """Generate a holistic domain strategy via Claude Sonnet.
-    Returns the parsed strategy dict, or a fallback dict with raw_text on parse failure."""
+    Returns the parsed strategy dict, or a fallback dict with raw_text on parse failure.
+
+    Tag/category pages are excluded from the Sonnet call and auto-assigned
+    authority_builder to reduce token count and avoid timeouts on large sites.
+    """
     api_key = _get_secret("ANTHROPIC_API_KEY")
     if not api_key:
         st.error("ANTHROPIC_API_KEY not configured.")
         return None
 
-    user_prompt = _build_user_prompt(project, pages, analyses, playbook_counts)
+    # Split pages: strategic (sent to Sonnet) vs auto-assigned (tag/category)
+    strategic_pages = []
+    auto_pages = []
+    for p in pages:
+        if _is_auto_authority(p.get("url", "")):
+            auto_pages.append(p)
+        else:
+            strategic_pages.append(p)
+
+    if auto_pages:
+        st.caption(f"Auto-assigning {len(auto_pages)} tag/category pages as Authority Builder. "
+                   f"Sending {len(strategic_pages)} pages for strategic analysis.")
+
+    user_prompt = _build_user_prompt(project, strategic_pages, analyses, playbook_counts)
 
     try:
         r = httpx.post(
@@ -151,7 +177,7 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
                 "system": _SYSTEM_PROMPT,
                 "messages": [{"role": "user", "content": user_prompt}],
             },
-            timeout=120.0,
+            timeout=180.0,
         )
         if r.status_code == 529:
             st.warning("Our AI service is temporarily busy. Your existing strategy is safe. Please try again in 5 minutes.")
@@ -186,12 +212,25 @@ def generate_domain_strategy(project: dict, pages: list[dict], analyses: dict, p
         try:
             strategy = json.loads(_clean)
 
-            # Validate: warn if Sonnet skipped pages
-            _input_ids = {str(p.get("id", "")) for p in pages}
-            _output_ids = {r.get("page_id") for r in strategy.get("page_roles", [])}
+            # Append auto-assigned tag/category pages as authority_builder
+            for ap in auto_pages:
+                strategy.setdefault("page_roles", []).append({
+                    "page_id": str(ap.get("id", "")),
+                    "url": ap.get("url", ""),
+                    "title": ap.get("title") or "Untitled",
+                    "role": "authority_builder",
+                    "reasoning": "Tag/category page — auto-assigned as authority builder.",
+                    "priority_queries": [],
+                    "do_not_recommend": [],
+                })
+
+            # Validate: warn if Sonnet skipped strategic pages
+            _input_ids = {str(p.get("id", "")) for p in strategic_pages}
+            _output_ids = {r.get("page_id") for r in strategy.get("page_roles", [])
+                           if r.get("page_id") in _input_ids}
             _missing = _input_ids - _output_ids
             if _missing:
-                st.warning(f"Strategy covers {len(_output_ids)}/{len(_input_ids)} pages. "
+                st.warning(f"Strategy covers {len(_output_ids)}/{len(_input_ids)} strategic pages. "
                            f"{len(_missing)} pages have no role assigned — regenerate for full coverage.")
 
             return strategy
