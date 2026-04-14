@@ -1,4 +1,51 @@
-# Search Intelligence Suite
+# Search Intelligence Suite (→ Aevily)
+
+## Open Sessions
+<!-- Each active Claude Code session adds a line here at start, removes/marks closed at end. Read this block BEFORE adding your own; if another session is open, flag the overlap to your user. -->
+- 🟢 **Morten** — started 2026-04-14 — activity: establishing two-Claude coordination protocol (open-session banner + CLAUDE.md push-on-update).
+
+> **CLAUDE.md convention (added 2026-04-12):** This file now has three sections — **Shared**, **Pal**, and **Morten**. Both developers' Claude Code instances update it every turn to preserve state. Put rules/architecture/project direction under Shared; machine- or developer-specific context under the respective personal section. When editing, do not place personal context in the other developer's section. Existing content below is currently under **Pal** until jointly migrated.
+>
+> **Two-Claude protocol (added 2026-04-14):** (1) Maintain the **Open Sessions** block above — add a line at session start, flag overlap if another session is open, remove/close at session end. (2) **Push CLAUDE.md to GitHub `master` on every update** with a `docs:` commit prefix. Auto-deploy to Streamlit Cloud is an accepted side-effect.
+
+---
+
+## Shared
+
+### Developers
+- **Pal** — original author; works from his local machine, pushes to GitHub `master` (default branch).
+- **Morten** — co-developer (joined 2026-04-12); works from `C:\mortenai\projects\search-intelligence-suite`; focuses on design/direction and now code.
+
+### Rules of engagement
+- Canonical repo: `github.com/pawa80/search-intelligence-suite` (default branch: `master`, not `main`).
+- Each session: check local vs GitHub `master`, pull diffs before working.
+- Update this CLAUDE.md every input→output cycle to retain state.
+- Rename in progress: "Search Intelligence Suite" → **Aevily** (merges AEO citation tracker + page agent).
+
+### Active branches (as of 2026-04-12)
+- `master` — mainline
+- `dev/2026-04-02`, `dev/2026-04-02-colour` — Pal's dev branches
+
+---
+
+## Morten
+
+### Environment
+- Local path: `C:\mortenai\projects\search-intelligence-suite`
+- Platform: Windows 11, bash shell
+- Cloned fresh from GitHub on 2026-04-12.
+
+### Session log
+- **2026-04-12** — First session. Cloned repo, established CLAUDE.md three-section convention. Not yet touched code.
+- **2026-04-12** — Confirmed Streamlit deployment context is sufficient for now (auto-deploy from master, Py 3.9, secrets in Cloud dashboard). Intentionally not pursuing dashboard access or Pal's global CLAUDE.md deployment catalogue.
+- **2026-04-13** — Produced a self-contained briefing of Domain Strategy Layer v4.0 for Morten to paste into Claude.ai (purpose, flow, storage, injection points, v5.0 hardening). No code changes.
+- **2026-04-14** — Established two-Claude coordination protocol: Open Sessions banner at top of CLAUDE.md, per-turn push to GitHub `master` with `docs:` prefix. First push now.
+
+---
+
+## Pal
+
+*(Existing CLAUDE.md content below — authored by Pal, kept intact. Shared rules will migrate up over time.)*
 
 ## 🔴 OPEN SESSIONS — CHECK FOR CONFLICTS BEFORE STARTING
 <!-- Update this section at session start and clear your line at session end -->
