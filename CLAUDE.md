@@ -1,5 +1,22 @@
 # Search Intelligence Suite
 
+## 🔴 OPEN SESSIONS — CHECK FOR CONFLICTS BEFORE STARTING
+<!-- Update this section at session start and clear your line at session end -->
+- **Pal's Claude**: Assessing repo privacy switch + secret scan (Apr 14)
+
+> **Rule**: Every open Claude Code session MUST register here on start: `Person's Claude: doing X (date)`. If another session is listed and overlaps with your work area, FLAG IT to your user before proceeding. Clear your line when session ends.
+
+## ⚠️ MULTI-DEVELOPER PROJECT — ALWAYS PULL BEFORE STARTING
+Pal and Morten both work on this repo from different machines. **Every session MUST start by checking for remote changes:**
+```bash
+git fetch origin && git status
+```
+If local is behind origin/master, pull before doing anything:
+```bash
+git pull origin master
+```
+This prevents merge conflicts and wasted work on stale code. **Do not skip this step.**
+
 ## Cross-Project Dependencies (maintained by COO, pal-ops)
 - **SHARED SUPABASE**: This project uses Supabase project `dxduneaizaxnynsmsvbx`, which is ALSO used by GEO Tracker (gen-seo-tracker) and AEO Audit Agent. All three apps read/write to the same PostgreSQL instance. Do NOT make schema changes without checking with COO (pal-ops chat) first.
 - **AEO Agent module**: The `aeo/` folder in this project is an adapted version of the standalone AEO Audit Agent (`C:\palai3\projects\aeo-audit-agent`). Changes to AEO logic should be coordinated. The standalone agent has its own deployment on Streamlit Cloud.
