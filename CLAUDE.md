@@ -2,7 +2,8 @@
 
 ## Open Sessions
 <!-- Each active Claude Code session adds a line here at start, removes/marks closed at end. Read this block BEFORE adding your own; if another session is open, flag the overlap to your user. -->
-- 🟢 **Morten** — started 2026-04-14 — activity: establishing two-Claude coordination protocol (open-session banner + CLAUDE.md push-on-update).
+- 🟢 **Morten's Claude** — started 2026-04-14 — activity: establishing two-Claude coordination protocol (open-session banner + CLAUDE.md push-on-update).
+- 🟢 **Pal's Claude** — 2026-04-14 — activity: assessing repo privacy switch + secret scan. *(Migrated from duplicate block below on 2026-04-14.)*
 
 > **CLAUDE.md convention (added 2026-04-12):** This file now has three sections — **Shared**, **Pal**, and **Morten**. Both developers' Claude Code instances update it every turn to preserve state. Put rules/architecture/project direction under Shared; machine- or developer-specific context under the respective personal section. When editing, do not place personal context in the other developer's section. Existing content below is currently under **Pal** until jointly migrated.
 >
@@ -39,19 +40,13 @@
 - **2026-04-12** — First session. Cloned repo, established CLAUDE.md three-section convention. Not yet touched code.
 - **2026-04-12** — Confirmed Streamlit deployment context is sufficient for now (auto-deploy from master, Py 3.9, secrets in Cloud dashboard). Intentionally not pursuing dashboard access or Pal's global CLAUDE.md deployment catalogue.
 - **2026-04-13** — Produced a self-contained briefing of Domain Strategy Layer v4.0 for Morten to paste into Claude.ai (purpose, flow, storage, injection points, v5.0 hardening). No code changes.
-- **2026-04-14** — Established two-Claude coordination protocol: Open Sessions banner at top of CLAUDE.md, per-turn push to GitHub `master` with `docs:` prefix. First push now.
+- **2026-04-14** — Established two-Claude coordination protocol: Open Sessions banner at top of CLAUDE.md, per-turn push to GitHub `master` with `docs:` prefix. First push surfaced parallel work — Pal's Claude had independently added its own Open Sessions block (now merged). Active Pal session: repo privacy switch + secret scan — flagged to Morten, no direct overlap in work area.
 
 ---
 
 ## Pal
 
 *(Existing CLAUDE.md content below — authored by Pal, kept intact. Shared rules will migrate up over time.)*
-
-## 🔴 OPEN SESSIONS — CHECK FOR CONFLICTS BEFORE STARTING
-<!-- Update this section at session start and clear your line at session end -->
-- **Pal's Claude**: Assessing repo privacy switch + secret scan (Apr 14)
-
-> **Rule**: Every open Claude Code session MUST register here on start: `Person's Claude: doing X (date)`. If another session is listed and overlaps with your work area, FLAG IT to your user before proceeding. Clear your line when session ends.
 
 ## ⚠️ MULTI-DEVELOPER PROJECT — ALWAYS PULL BEFORE STARTING
 Pal and Morten both work on this repo from different machines. **Every session MUST start by checking for remote changes:**
