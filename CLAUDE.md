@@ -2,7 +2,7 @@
 
 ## 🔴 OPEN SESSIONS — CHECK FOR CONFLICTS BEFORE STARTING
 <!-- Update this section at session start and clear your line at session end -->
-- **Pal's Claude**: Assessing repo privacy switch + secret scan (Apr 14)
+- (no active sessions)
 
 > **Rule**: Every open Claude Code session MUST register here on start: `Person's Claude: doing X (date)`. If another session is listed and overlaps with your work area, FLAG IT to your user before proceeding. Clear your line when session ends.
 
@@ -131,6 +131,7 @@ Pal + Morten collaboration.
 - **v5.1 Session (Apr 10-11)**: Crawler max_pages 20→200 (root cause of incomplete strategies). Strategy timeout fix: tag/category auto-assignment + 180s timeout. Strategy overwrite protection (validates + backs up to domain_strategy_previous). 404→dead status + status badges in crawl overview (✅/🔴/↩️). content_text extraction (first 500 words) in page_elements. Domain context editor moved to Settings page. Brand Context Auditor demo (wagamama sample audit with colour-coded investigations). HTTP 529 handling across all Anthropic calls.
 
 ## Next Up
+- **Private repo hosting** (parked): Streamlit Cloud can't deploy from private repos with current setup. When ready, migrate to Hugging Face Spaces (minimal effort) or Render (needs Dockerfile). Repo stays public for now — secret scan confirmed clean.
 - **Migration 013**: Run `migrations/013_domain_strategy_previous.sql` in Supabase SQL editor for strategy backup column.
 - **Re-crawl projects**: With max_pages=200 default, re-crawl to populate content_text and get full page coverage for domain strategies.
 - **Regenerate strategies**: After re-crawl, regenerate to get strategy_narrative + full page coverage.
@@ -397,7 +398,22 @@ When adding new tables that reference `projects` or `workspaces`:
 - "Re-generate" button → switches to AEO Agent via `_tool_override` + `matrise_generate_url`
 
 ## Rolling Handover
-Last session: Apr 11 2026
+Last session: Apr 15 2026
+
+### Apr 15 2026 — Repo privacy attempt (reverted)
+
+**What happened:** Attempted to make `pawa80/search-intelligence-suite` private on GitHub. Streamlit Community Cloud immediately lost access — cannot clone private repos with current OAuth setup (only has login scope, not repo scope). Re-authorizing GitHub on Streamlit didn't prompt for new permissions. Repo reverted to public, app rebooted and confirmed working.
+
+**Secret scan result:** Clean. No `.env`, credentials, or hardcoded API keys ever committed to git history. Supabase project IDs in CLAUDE.md are low risk (RLS-protected).
+
+**Findings:**
+- Streamlit Community Cloud claims to support 1 private repo on free tier, but requires granting read/write access to ALL repos (public + private) — the re-auth flow didn't trigger this permission request.
+- `github.com/apps/streamlit` (GitHub App install) returns 404 — no direct install path.
+- Alternatives investigated: Hugging Face Spaces (minimal migration), Render (needs Dockerfile), Railway ($5/mo). Vercel doesn't run Streamlit natively.
+
+**Decision:** Repo stays public for now. No secrets are exposed. Private hosting is a future task — likely Hugging Face Spaces or Render when it becomes a priority.
+
+**Also this session:** Added open session tracking rule to CLAUDE.md (committed + pushed). Two Claude Code instances (Pal + Morten) now register active sessions to prevent overlapping work.
 
 ### Apr 11 2026 — v5.1 Crawler fixes + Brand Audit demo + Settings
 
